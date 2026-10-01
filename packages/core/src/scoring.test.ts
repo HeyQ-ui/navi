@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { computeIndicatorScores } from './scoring.js'
+import { computeIndicatorScores, consistencyOf } from './scoring.js'
 import type { Question, IndicatorDef } from './types.js'
 
 const indicators: IndicatorDef[] = [
@@ -71,5 +71,32 @@ describe('computeIndicatorScores', () => {
     expect(scores['academic-interest']!.score).toBe(50)
     expect(scores['academic-interest']!.consistency).toBe(1)
     expect(scores['academic-interest']!.sources).not.toContain('elig')
+  })
+})
+
+describe('consistencyOf 边界', () => {
+  it('全部同分时一致性为 1', () => {
+    expect(consistencyOf([50, 50, 50])).toBe(1)
+  })
+
+  it('极端分化（一半 0 一半 100）时一致性为 0', () => {
+    expect(consistencyOf([0, 100])).toBe(0)
+  })
+
+  it('结果永远不为负', () => {
+    for (const set of [[0, 100, 0, 100], [0, 0, 100], [100, 0, 0, 100, 0]]) {
+      expect(consistencyOf(set)).toBeGreaterThanOrEqual(0)
+    }
+  })
+
+  it('题目少于 2 道时返回 0（无法判断一致性）', () => {
+    expect(consistencyOf([80])).toBe(0)
+    expect(consistencyOf([])).toBe(0)
+  })
+
+  it('轻微分歧时一致性介于 0 与 1 之间', () => {
+    const c = consistencyOf([50, 75, 50])
+    expect(c).toBeGreaterThan(0)
+    expect(c).toBeLessThan(1)
   })
 })
