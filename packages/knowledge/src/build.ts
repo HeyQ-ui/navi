@@ -10,34 +10,40 @@ import type {
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 
-function readYamlDir<T>(dir: string): T[] {
-  const full = join(ROOT, dir)
+/** 读取一个 YAML 目录。按文件名排序，使产物顺序不依赖文件系统的枚举顺序 */
+function readYamlDir<T>(rootDir: string, dir: string): T[] {
+  const full = join(rootDir, dir)
   if (!existsSync(full)) return []
   return readdirSync(full)
     .filter(f => f.endsWith('.yaml') || f.endsWith('.yml'))
+    .sort()
     .map(f => parseYaml(readFileSync(join(full, f), 'utf8')) as T)
 }
 
 export function buildKnowledge(rootDir = ROOT): KnowledgeBundle {
-  const indicators = readYamlDir<IndicatorDef>('indicators')
-  const questions = readYamlDir<QuestionDef>('questions')
-  const archetypes = readYamlDir<ArchetypeDef>('archetypes')
+  const indicators = readYamlDir<IndicatorDef>(rootDir, 'indicators')
+  const questions = readYamlDir<QuestionDef>(rootDir, 'questions')
+  const archetypes = readYamlDir<ArchetypeDef>(rootDir, 'archetypes')
 
   const pathsDir = join(rootDir, 'paths')
   const paths: PathDef[] = []
   const blocks: Record<string, Block[]> = {}
 
   if (existsSync(pathsDir)) {
-    for (const entry of readdirSync(pathsDir, { withFileTypes: true })) {
-      if (!entry.isDirectory()) continue
-      const docPath = join(pathsDir, entry.name, 'index.md')
+    const dirNames = readdirSync(pathsDir, { withFileTypes: true })
+      .filter(entry => entry.isDirectory())
+      .map(entry => entry.name)
+      .sort()
+
+    for (const name of dirNames) {
+      const docPath = join(pathsDir, name, 'index.md')
       if (!existsSync(docPath)) continue
 
       const { data, content } = parseFrontmatter(readFileSync(docPath, 'utf8'))
-      const id = String(data.id ?? entry.name)
+      const id = String(data.id ?? name)
       paths.push({
         id,
-        title: String(data.title ?? entry.name),
+        title: String(data.title ?? name),
         category: String(data.category ?? ''),
         span: String(data.span ?? ''),
         status: (data.status as PathDef['status']) ?? 'draft',
@@ -48,6 +54,9 @@ export function buildKnowledge(rootDir = ROOT): KnowledgeBundle {
       blocks[id] = parseBlocks(content)
     }
   }
+
+  // 按 id 排序，使顺序与目录命名无关。「同样输入必然同样输出」依赖于此
+  paths.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
 
   return { indicators, questions, archetypes, paths, blocks }
 }
