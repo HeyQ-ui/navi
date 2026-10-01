@@ -1,7 +1,7 @@
 # PROJECT_STATE
 
 > 交接文档。记录继续开发所需的事实，不含讨论过程。
-> 最后更新：2026-10-01 · 分支 `worktree-navi-core-pipeline` · HEAD `94084d3`
+> 最后更新：2026-10-01 · 工作区 `main` · §8.2 的 Minor 已修复，尚未提交
 
 ---
 
@@ -69,12 +69,14 @@ apps/web            ←  React SPA，只消费 HTTP 接口
 
 ## 4. 当前代码状态
 
-**分支**：`worktree-navi-core-pipeline`，17 个提交，**未合并到 main**
-**工作区**：`F:\workspace\大学生生涯规划Agent\Navi\.claude\worktrees\navi-core-pipeline`
+**分支**：`main`，全部提交已合入；旧分支 `worktree-navi-core-pipeline` 停在 `b81ce30`，可直接删除
+**工作区**：`F:\workspace\大学生生涯规划Agent\Navi`（**仓库根，唯一权威工作树**）
+
+> ⚠️ `.claude/worktrees/navi-core-pipeline/` 是被 `.gitignore` 忽略的**残缺副本**：没有 `docs/`、`AGENTS.md`、`CLAUDE.md`、`eslint.config.js`，`apps/` 是空目录，在该目录下 `pnpm -r lint` 会失败。**不要在副本里开发**，可删除。
 
 ```bash
 pnpm install
-pnpm test        # 99 个测试，全绿
+pnpm test        # 107 个测试，全绿
 pnpm -r build    # tsc --noEmit + vite build，通过
 pnpm -r lint     # 通过
 ```
@@ -83,10 +85,10 @@ pnpm -r lint     # 通过
 
 | 包 | 测试数 | 覆盖内容 |
 |---|---|---|
-| `packages/knowledge` | 11 | frontmatter / 块解析 / 校验规则 |
-| `packages/core` | 59 | 六个算法模块 + 黄金案例集 |
+| `packages/knowledge` | 14 | frontmatter / 块解析 / 校验规则 / 编译顺序确定性 |
+| `packages/core` | 61 | 六个算法模块 + 黄金案例集 |
 | `apps/api` | 15 | 三个端点 + 年级分流 + 完整性校验 |
-| `apps/web` | 14 | 问卷组件 + 结果页 |
+| `apps/web` | 17 | 问卷组件 + 结果页 + 空题目 / 全不适用显式态 |
 
 ### 端到端验证结果（已实测）
 
@@ -216,13 +218,18 @@ match(path)                  = Σ(match_i × W'[i])
 - 路径的 `weights` 与 `ideal` 取值是初稿，需内容组复核
 - `eligibility-tuimian-quota` 选「不清楚」或「没听说过」会**硬性剔除**两条保研路径。是否误伤实际有资格但不了解政策的低年级学生，属内容/产品判断
 
-### 8.2 代码 Minor（5 条，已记录未修）
+### 8.2 代码 Minor（已全部修复，未提交）
 
-1. **`build.ts` 的 `readdirSync` 未排序** —— `bundle.paths` 顺序依赖文件系统，`diagnose` 的 `Array.sort` 是稳定排序，并列路径的先后在跨机器时可能不同，与「可复现」有张力。**一行 `.sort()` 可修**
-2. 不适用路径的 `contributions` 未归零，分项之和与展示的 `match: 0` 不自洽（前端暂未消费）
-3. `NormalizedWeights.coverage` 是未被消费的输出，语义上是「已知权重之和」而非比例
-4. `packages/knowledge/src/index.ts` 未 re-export `build`
-5. 前端缺少「信息不足」显式态（空答案已被 API 拒绝，但 UI 未提前拦截）；设计 §10 的「当前没有匹配的路径」汇总分支在真实内容下**不可达**（7 条路径中只有 2 条有 `eligibility`）
+原记录 5 条已处理，另发现并修掉 1 条。每条都有对应的失败用例兜底（「关掉修复就会红」已实测）。
+
+1. **`build.ts` 顺序不确定** —— `readdirSync` 结果已排序，且 `paths` 最终按 `id` 排序，产物顺序不再依赖文件系统枚举顺序。新增 `packages/knowledge/src/build.test.ts`
+2. **不适用路径的 `contributions` 未归零** —— 现在归零为空数组，分项之和与 `match: 0` 自洽
+3. **`NormalizedWeights.coverage`** —— 无生产代码消费，且语义是「已知权重之和」而非比例，**已删除该字段**
+4. **`packages/knowledge/src/index.ts` 未 re-export `build`** —— 已补
+5. **前端缺两个显式态** —— `App.tsx` 在无题可答时给出「信息不足」而非让用户提交后撞 API 400；`ResultView.tsx` 在**全部**路径 hard 不适用时输出「当前没有匹配的路径」汇总（设计文档 §10），并抑制此时无意义的「分数很接近」提示
+6. **（新发现）`buildKnowledge(rootDir)` 的 `rootDir` 此前只对 `paths/` 生效** —— `readYamlDir` 硬编码了模块级 `ROOT`，已改为尊重入参
+
+**遗留观察（未处理，需设计判断）**：`findCloseMatches` 在「全部路径都不适用」时会回退到全体路径比较（计划 Task 12 的既定行为）。此时所有 `match` 都是 0，`closeMatches` 会返回全部 7 条 id。UI 已在渲染层抑制该提示，但接口层面仍会下发这个无意义的数组。是否改掉回退逻辑，属设计判断，动之前先确认。
 
 ### 8.3 环境相关
 
@@ -241,10 +248,12 @@ match(path)                  = Σ(match_i × W'[i])
 
 按依赖顺序：
 
-1. **修 `readdirSync` 排序**（一行，与可复现性承诺直接相关）
+1. ~~修 `readdirSync` 排序~~（已完成，见 §8.2）
 2. **计划 ②（LLM 层）**——`diagnose` 输出的结构化 JSON 已可直接消费，边界清晰
 3. **内容组并行**：把核心路径的 `status` 提到 `verified`，复核 `weights` / `ideal`，创建 `boundaries.md`
 4. **计划 ③（可视化）**——依赖计划 ② 的接口定稿（解读文本的展示位置）
+
+> §8.2 的修复目前只在工作区，尚未提交。开新工作前先决定：直接提交到 `main`，还是起一条新分支。
 
 开发流程沿用既有约定：`AGENTS.md` 定义了模块边界与硬约束；提交信息用中文、遵循 Conventional Commits；涉及推荐逻辑的改动必须同步更新 `packages/core/src/fixtures/golden-cases.ts`。
 
