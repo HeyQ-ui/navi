@@ -1,0 +1,11 @@
+id: gpa-competitiveness-senior-1
+indicator: gpa-competitiveness
+weight: 1
+grades: [sophomore,junior,senior]
+text: 你的专业排名大致在——
+options:
+  - 后半段
+  - 中下
+  - 中游
+  - 前 30%
+  - 前 10%

@@ -1,0 +1,10 @@
+id: discipline-identity-1
+indicator: discipline-identity
+weight: 1
+text: 如果现在给你一次自由换专业的机会，你会：
+options:
+  - 毫不犹豫地换
+  - 认真考虑，大概率会换
+  - 说不清，要看换成什么
+  - 大概率不换，现在的不错
+  - 完全不换，我很喜欢现在的专业

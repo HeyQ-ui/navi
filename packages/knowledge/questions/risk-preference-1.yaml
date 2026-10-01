@@ -1,0 +1,10 @@
+id: risk-preference-1
+indicator: risk-preference
+weight: 1
+text: 面对一个成功率五成、但回报明显更高的机会，你会：
+options:
+  - 基本不会尝试
+  - 大概率放弃
+  - 犹豫，看情况
+  - 大概率会试
+  - 会果断尝试

@@ -1,0 +1,10 @@
+id: accumulation-drive-2
+indicator: accumulation-drive
+weight: 1
+text: 除了课程要求，你过去一年主动做过的事（自学技能、做项目、参加社团、兼职等）：
+options:
+  - 基本没有
+  - 一两件，浅尝辄止
+  - 有几件，有些坚持下来了
+  - 不少，且有几件做得比较深入
+  - 很多，一直保持着主动找事做的状态

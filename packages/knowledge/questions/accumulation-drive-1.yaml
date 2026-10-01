@@ -1,0 +1,10 @@
+id: accumulation-drive-1
+indicator: accumulation-drive
+weight: 1
+text: 一个你感兴趣的竞赛或项目通知出现时，你更可能：
+options:
+  - 看看就算了
+  - 想去，但大概率不会报名
+  - 会犹豫，需要有人拉一把
+  - 会报名，然后开始准备
+  - 会马上找人组队，立刻开工

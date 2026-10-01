@@ -1,0 +1,11 @@
+id: gpa-competitiveness-senior-3
+indicator: gpa-competitiveness
+weight: 1
+grades: [sophomore,junior,senior]
+text: 你身边成绩最好的那批同学，和你平时的差距：
+options:
+  - 差距很大，感觉不是一条路
+  - 有明显差距
+  - 有差距，但能追
+  - 差距不大
+  - 基本在同一梯队

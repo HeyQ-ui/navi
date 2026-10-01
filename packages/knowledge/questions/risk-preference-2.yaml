@@ -1,0 +1,10 @@
+id: risk-preference-2
+indicator: risk-preference
+weight: 1
+text: 你更认同哪种说法：
+options:
+  - 一定要留好退路再行动
+  - 稳住基本盘最重要
+  - 看情况，很难一概而论
+  - 该冒的险还是要冒
+  - 机会不等人，值得赌

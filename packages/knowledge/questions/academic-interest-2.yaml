@@ -1,0 +1,10 @@
+id: academic-interest-2
+indicator: academic-interest
+weight: 1
+text: 一门课的老师留了一道不计分、也没有标准答案的思考题。你更可能：
+options:
+  - 直接跳过，不计分就不管
+  - 看一眼，想不出就算了
+  - 想一会儿，有个大概想法
+  - 会认真想想，甚至记下来
+  - 会去查资料，想弄明白为止

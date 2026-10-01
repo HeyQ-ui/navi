@@ -1,0 +1,10 @@
+id: stress-endurance-3
+indicator: stress-endurance
+weight: 1
+text: 备考期间，如果身边同学陆续有了出路（保研、offer），你的状态：
+options:
+  - 会明显动摇，甚至想放弃
+  - 会焦虑，效率受影响
+  - 有点影响，但能调整
+  - 影响不大
+  - 基本不受影响，按自己的节奏走

@@ -1,0 +1,10 @@
+id: discipline-identity-3
+indicator: discipline-identity
+weight: 1
+text: 专业课的作业，你完成时的状态更接近：
+options:
+  - 纯粹应付，能交就行
+  - 完成任务，不投入额外精力
+  - 按部就班做完
+  - 会想把内容做扎实一点
+  - 会顺手多做一些自己感兴趣的延伸

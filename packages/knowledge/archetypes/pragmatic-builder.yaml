@@ -1,0 +1,19 @@
+id: pragmatic-builder
+name: 务实行动型
+vector:
+  academic-interest: 45
+  gpa-competitiveness: 60
+  discipline-identity: 55
+  cost-tolerance: 40
+  risk-preference: 45
+  stress-endurance: 60
+  public-affairs-leaning: 40
+  accumulation-drive: 90
+narrative:
+  oneLiner: 你更相信亲手做出来的东西，愿意用行动换取机会，而不是等待评判。
+  strengths:
+    - 主动性强，能自己找到机会
+    - 对市场信号敏感
+  blindspots:
+    - 可能低估学历门槛的长期影响
+    - 容易在多个方向间分散精力

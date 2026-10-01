@@ -1,0 +1,10 @@
+id: public-affairs-leaning-2
+indicator: public-affairs-leaning
+weight: 1
+text: 对于写材料、走流程、按规矩办事这类工作内容，你的感受是：
+options:
+  - 很排斥
+  - 不太喜欢
+  - 可以接受
+  - 比较适应
+  - 我擅长也更愿意做这类事

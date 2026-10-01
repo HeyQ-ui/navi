@@ -1,0 +1,10 @@
+id: accumulation-drive-3
+indicator: accumulation-drive
+weight: 1
+text: 当你对某个领域产生兴趣时，通常：
+options:
+  - 停留在想法阶段
+  - 会查查资料，但不一定动手
+  - 会做点简单的尝试
+  - 会动手做出点东西
+  - 会持续做下去，并产出可见的成果

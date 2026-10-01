@@ -1,0 +1,11 @@
+id: gpa-competitiveness-freshman-2
+indicator: gpa-competitiveness
+weight: 1
+grades: [freshman]
+text: 在你所在省份考入本校的同学里，你的高考成绩大致处于什么位置？
+options:
+  - 明显靠后
+  - 中下
+  - 中游
+  - 中上
+  - 靠前

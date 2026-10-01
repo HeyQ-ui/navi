@@ -1,0 +1,10 @@
+id: cost-tolerance-3
+indicator: cost-tolerance
+weight: 1
+text: 对于「先工作两年再决定要不要读研」这个选项，你的看法是：
+options:
+  - 不希望，想尽快确定下来
+  - 倾向于不这样
+  - 可以考虑
+  - 觉得是个不错的思路
+  - 很可能就这么做

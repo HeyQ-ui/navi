@@ -1,0 +1,10 @@
+id: risk-preference-3
+indicator: risk-preference
+weight: 1
+text: 如果保研和考研只能二选一，你会：
+options:
+  - 一定选更有把握的那个
+  - 倾向选更稳的
+  - 取决于哪个更划算
+  - 倾向选上限更高的
+  - 一定选上限更高的

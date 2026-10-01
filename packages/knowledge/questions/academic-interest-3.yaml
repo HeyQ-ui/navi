@@ -1,0 +1,10 @@
+id: academic-interest-3
+indicator: academic-interest
+weight: 1
+text: 读到一篇与你专业相关、但结论出乎意料的文章时，你的第一反应是：
+options:
+  - 不太在意，跟考试无关
+  - 有点好奇，但看过就过去了
+  - 会想一下它有没有道理
+  - 会去查查原始研究
+  - 会想再往下追问一步

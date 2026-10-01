@@ -1,0 +1,10 @@
+id: cost-tolerance-2
+indicator: cost-tolerance
+weight: 1
+text: 假如需要自费读一个两年的硕士，学费加生活费对家庭的影响：
+options:
+  - 会明显影响家庭生活
+  - 会有些吃力
+  - 能承担，但需要计划
+  - 基本没有压力
+  - 完全不成问题

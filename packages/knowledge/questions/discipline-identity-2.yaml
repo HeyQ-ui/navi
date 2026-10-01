@@ -1,0 +1,10 @@
+id: discipline-identity-2
+indicator: discipline-identity
+weight: 1
+text: 和亲戚朋友聊起你的专业时，你通常：
+options:
+  - 会刻意回避这个话题
+  - 有点尴尬，含糊带过
+  - 客观介绍，不带情绪
+  - 会说说它有意思的地方
+  - 会主动安利，讲得挺起劲

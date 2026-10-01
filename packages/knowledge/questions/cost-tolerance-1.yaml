@@ -1,0 +1,10 @@
+id: cost-tolerance-1
+indicator: cost-tolerance
+weight: 1
+text: 如果读研意味着比本科同学晚两三年才开始有收入，你和家里的态度更接近：
+options:
+  - 家里明确希望我尽快工作
+  - 家里倾向于我早点工作
+  - 家里没意见，看我
+  - 家里支持我继续读
+  - 家里明确支持，并且有准备

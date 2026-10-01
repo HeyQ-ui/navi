@@ -1,0 +1,10 @@
+id: public-affairs-leaning-3
+indicator: public-affairs-leaning
+weight: 1
+text: 选择工作时，你更看重：
+options:
+  - 成长速度和个人上限
+  - 收入和自由度
+  - 两者差不多
+  - 稳定性和保障
+  - 稳定压倒一切

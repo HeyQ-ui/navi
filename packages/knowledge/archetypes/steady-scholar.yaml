@@ -1,0 +1,19 @@
+id: steady-scholar
+name: 稳健学术型
+vector:
+  academic-interest: 85
+  gpa-competitiveness: 78
+  discipline-identity: 80
+  cost-tolerance: 60
+  risk-preference: 80
+  stress-endurance: 75
+  public-affairs-leaning: 30
+  accumulation-drive: 60
+narrative:
+  oneLiner: 你把大学当作一条向上的台阶，愿意用确定性的努力换取确定性的结果。
+  strengths:
+    - 目标清晰，耐得住长周期的重复投入
+    - 对绩点和排名有天然的敏感度
+  blindspots:
+    - 容易忽略绩点之外的评价维度
+    - 对突然的变化缺少预案

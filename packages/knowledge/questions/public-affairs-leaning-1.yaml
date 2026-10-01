@@ -1,0 +1,10 @@
+id: public-affairs-leaning-1
+indicator: public-affairs-leaning
+weight: 1
+text: 想象一份工作：内容稳定、流程清晰、变化不多。你的第一反应是：
+options:
+  - 会很压抑，受不了
+  - 有点抵触
+  - 中立，看其他条件
+  - 觉得挺好，安稳
+  - 正是我想要的状态

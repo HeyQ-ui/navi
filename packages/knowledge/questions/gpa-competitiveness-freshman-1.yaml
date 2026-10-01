@@ -1,0 +1,11 @@
+id: gpa-competitiveness-freshman-1
+indicator: gpa-competitiveness
+weight: 1
+grades: [freshman]
+text: 入学后第一次作业或小测，你和身边同学的差距给你的感觉是——
+options:
+  - 我明显落后，有点慌
+  - 落后一点，需要追
+  - 差不多，大家都在同一起跑线
+  - 我稍微领先
+  - 我明显靠前，但还不确定能不能保持
