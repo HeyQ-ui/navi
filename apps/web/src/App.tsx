@@ -82,5 +82,15 @@ export function App() {
 
   if (!data) return <p className="p-6">加载中……</p>
 
+  // 没有可作答的题目时提前给出显式态，不让用户提交后撞 API 的 400（设计文档 §10）
+  if (data.questions.length === 0) {
+    return (
+      <div className="p-6">
+        <p className="text-gray-700">信息不足：当前没有可作答的题目，无法给出推荐。</p>
+        <button type="button" onClick={() => setStage('grade')}>重新选择年级</button>
+      </div>
+    )
+  }
+
   return <Questionnaire questions={data.questions} onSubmit={handleSubmit} />
 }

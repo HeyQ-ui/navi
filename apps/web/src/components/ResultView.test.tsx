@@ -82,3 +82,31 @@ describe('ResultView · 接近路径提示（设计文档 §10）', () => {
     expect(screen.queryByText(/很接近/)).not.toBeInTheDocument()
   })
 })
+
+describe('ResultView · 全部路径不适用（设计文档 §10）', () => {
+  const noneApplicable: DiagnosisResult = {
+    ...result,
+    paths: result.paths.map(path => ({
+      ...path,
+      match: 0,
+      eligibility: { ...path.eligibility, applicable: false },
+    })),
+  }
+
+  it('给出「当前没有匹配的路径」汇总提示，同时保留逐条原因', () => {
+    render(<ResultView result={noneApplicable} paths={paths} />)
+    expect(screen.getByText(/当前没有匹配的路径/)).toBeInTheDocument()
+    expect(screen.getByText(/你的专业没有对口岗位/)).toBeInTheDocument()
+  })
+
+  it('此时不再给出「分数很接近」提示', () => {
+    render(
+      <ResultView
+        result={noneApplicable}
+        paths={paths}
+        closeMatches={['same-discipline-baoyan', 'civil-service']}
+      />,
+    )
+    expect(screen.queryByText(/很接近/)).not.toBeInTheDocument()
+  })
+})

@@ -9,6 +9,9 @@ interface Props {
 
 export function ResultView({ result, paths, closeMatches = [] }: Props) {
   const pathById = new Map(paths.map(p => [p.id, p]))
+  // 全部路径都不成立时不再比较接近度——此时所有 match 都是 0，比较没有意义（设计文档 §10）
+  const allInapplicable =
+    result.paths.length > 0 && result.paths.every(p => !p.eligibility.applicable)
 
   return (
     <div className="mx-auto max-w-3xl p-6">
@@ -29,7 +32,13 @@ export function ResultView({ result, paths, closeMatches = [] }: Props) {
 
       <section>
         <h2 className="mb-2 text-lg font-semibold">路径匹配</h2>
-        {closeMatches.length > 1 && (
+        {allInapplicable && (
+          <p className="mb-3 text-sm text-red-600">
+            当前没有匹配的路径——下面每一条对你都不成立，原因逐条列出。
+            这本身就是有用的信息：先解决这些前置条件，再回来评估。
+          </p>
+        )}
+        {!allInapplicable && closeMatches.length > 1 && (
           <p className="mb-3 text-sm text-gray-600">
             {closeMatches.map(id => pathById.get(id)?.title ?? id).join(' 与 ')}
             对你的分数很接近，差异主要在于各自的代价与时间线，而不是谁更「适合」。
