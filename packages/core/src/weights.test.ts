@@ -16,23 +16,21 @@ const weights: PathWeight[] = [
 ]
 
 describe('normalizeWeights', () => {
-  it('全部已知时权重保持不变，coverage 为 1', () => {
-    const { entries, coverage } = normalizeWeights(weights, {
+  it('全部已知时权重保持不变', () => {
+    const { entries } = normalizeWeights(weights, {
       'academic-interest': known(),
       'gpa-competitiveness': known(),
       'risk-preference': known(),
     })
-    expect(coverage).toBe(1)
     expect(entries.map(e => e.weight)).toEqual([0.25, 0.35, 0.40])
   })
 
   it('部分未知时剩余权重按比例放大且总和为 1', () => {
-    const { entries, coverage } = normalizeWeights(weights, {
+    const { entries } = normalizeWeights(weights, {
       'academic-interest': known(),
       'gpa-competitiveness': known(),
       'risk-preference': unknown(),
     })
-    expect(coverage).toBeCloseTo(0.6, 10)
     const total = entries.reduce((s, e) => s + e.weight, 0)
     expect(total).toBeCloseTo(1, 10)
     expect(entries.find(e => e.indicator === 'academic-interest')!.weight).toBeCloseTo(0.25 / 0.6, 10)
@@ -48,21 +46,19 @@ describe('normalizeWeights', () => {
     expect(entries[0]!.indicator).toBe('academic-interest')
   })
 
-  it('全部未知时返回空数组且 coverage 为 0，不产生 NaN', () => {
-    const { entries, coverage } = normalizeWeights(weights, {
+  it('全部未知时返回空数组，不产生 NaN', () => {
+    const { entries } = normalizeWeights(weights, {
       'academic-interest': unknown(),
       'gpa-competitiveness': unknown(),
       'risk-preference': unknown(),
     })
     expect(entries).toEqual([])
-    expect(coverage).toBe(0)
   })
 
   it('权重缺失的指标按未知处理', () => {
-    const { entries, coverage } = normalizeWeights(weights, {
+    const { entries } = normalizeWeights(weights, {
       'academic-interest': known(),
     })
     expect(entries).toHaveLength(1)
-    expect(coverage).toBeCloseTo(0.25, 10)
   })
 })

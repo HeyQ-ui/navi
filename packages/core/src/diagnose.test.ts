@@ -85,6 +85,29 @@ describe('diagnose', () => {
     expect(result.paths[0]!.eligibility.applicable).toBe(false)
   })
 
+  it('不适用路径的分项贡献一并归零，与 match: 0 自洽', () => {
+    const base = makeKnowledge()
+    const knowledge = makeKnowledge({
+      questions: [...base.questions, { ...q('elig', 'academic-interest'), weight: 0 }],
+      paths: [{
+        ...base.paths[0]!,
+        eligibility: [{
+          id: 'x', questionId: 'elig', severity: 'hard' as const,
+          failMessage: '不满足', passWhen: [0],
+        }],
+      }],
+    })
+    const path = diagnose({ ...fullAnswers, elig: 4 }, knowledge).paths[0]!
+    expect(path.match).toBe(0)
+    expect(path.contributions).toEqual([])
+  })
+
+  it('适用路径的分项贡献之和等于 match', () => {
+    const path = diagnose(fullAnswers, makeKnowledge()).paths[0]!
+    const sum = path.contributions.reduce((acc, c) => acc + c.contribution, 0)
+    expect(sum).toBeCloseTo(path.match, 10)
+  })
+
   it('路径按匹配度降序排列', () => {
     const base = makeKnowledge()
     const knowledge: KnowledgeBundle = {

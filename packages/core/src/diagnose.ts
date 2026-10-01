@@ -31,10 +31,12 @@ export function diagnose(
 
     return {
       id: path.id,
+      // hard 约束失败时这条路径不参与打分：match 与分项贡献一并归零，
+      // 否则 contributions 之和与展示的 match 不自洽
       match: eligibility.applicable ? match : 0,
       confidence,
       eligibility,
-      contributions,
+      contributions: eligibility.applicable ? contributions : [],
     }
   })
 
