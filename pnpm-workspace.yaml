@@ -1,0 +1,8 @@
+packages:
+  - 'packages/*'
+  - 'apps/*'
+
+# pnpm 11+ 不再运行依赖的安装脚本，除非显式允许。
+# esbuild 是 vitest 的底层依赖，需允许其完成平台二进制的链接。
+allowBuilds:
+  esbuild: true
