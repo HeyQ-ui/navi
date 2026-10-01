@@ -3,9 +3,11 @@ import type { DiagnosisResult, PathSummary } from '../api.js'
 interface Props {
   result: DiagnosisResult
   paths: PathSummary[]
+  /** 分数接近的路径 id（设计文档 §10） */
+  closeMatches?: string[]
 }
 
-export function ResultView({ result, paths }: Props) {
+export function ResultView({ result, paths, closeMatches = [] }: Props) {
   const pathById = new Map(paths.map(p => [p.id, p]))
 
   return (
@@ -27,6 +29,12 @@ export function ResultView({ result, paths }: Props) {
 
       <section>
         <h2 className="mb-2 text-lg font-semibold">路径匹配</h2>
+        {closeMatches.length > 1 && (
+          <p className="mb-3 text-sm text-gray-600">
+            {closeMatches.map(id => pathById.get(id)?.title ?? id).join(' 与 ')}
+            对你的分数很接近，差异主要在于各自的代价与时间线，而不是谁更「适合」。
+          </p>
+        )}
         {result.paths.length === 0 ? (
           <p className="text-gray-500">暂无匹配路径</p>
         ) : (

@@ -64,3 +64,21 @@ describe('ResultView', () => {
     expect(() => render(<ResultView result={empty} paths={[]} />)).not.toThrow()
   })
 })
+
+describe('ResultView · 接近路径提示（设计文档 §10）', () => {
+  it('多条路径分数接近时给出提示', () => {
+    render(
+      <ResultView
+        result={result}
+        paths={paths}
+        closeMatches={['same-discipline-baoyan', 'civil-service']}
+      />,
+    )
+    expect(screen.getByText(/很接近/)).toBeInTheDocument()
+  })
+
+  it('只有一条路径时不给接近提示', () => {
+    render(<ResultView result={result} paths={paths} closeMatches={['same-discipline-baoyan']} />)
+    expect(screen.queryByText(/很接近/)).not.toBeInTheDocument()
+  })
+})

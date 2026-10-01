@@ -1,0 +1,19 @@
+id: cautious-generalist
+name: 稳健通才型
+vector:
+  academic-interest: 55
+  gpa-competitiveness: 55
+  discipline-identity: 55
+  cost-tolerance: 45
+  risk-preference: 80
+  stress-endurance: 50
+  public-affairs-leaning: 55
+  accumulation-drive: 45
+narrative:
+  oneLiner: 你各条路都走得通，但也都不算突出；你的关键课题是选一条并投入，而不是继续观望。
+  strengths:
+    - 适应性好，不容易走进死胡同
+    - 判断务实，不会为单一目标押上全部
+  blindspots:
+    - 容易因为「哪条都还行」而迟迟不决定
+    - 分散投入会让每条路都停在及格线

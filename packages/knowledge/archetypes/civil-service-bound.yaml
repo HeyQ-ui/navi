@@ -1,0 +1,19 @@
+id: civil-service-bound
+name: 公共事务型
+vector:
+  academic-interest: 30
+  gpa-competitiveness: 50
+  discipline-identity: 45
+  cost-tolerance: 40
+  risk-preference: 85
+  stress-endurance: 65
+  public-affairs-leaning: 90
+  accumulation-drive: 45
+narrative:
+  oneLiner: 你看重确定性与长期稳定，也适应按规矩办事、按流程推进的工作方式。
+  strengths:
+    - 对长周期备考有耐心，不容易中途动摇
+    - 与体制内的工作节奏天然契合
+  blindspots:
+    - 报考范围受专业与学历限制，需要提前核对岗位表
+    - 可能低估市场化岗位的机会成本

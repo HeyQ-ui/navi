@@ -1,0 +1,19 @@
+id: ambitious-striver
+name: 进取冲刺型
+vector:
+  academic-interest: 65
+  gpa-competitiveness: 70
+  discipline-identity: 60
+  cost-tolerance: 55
+  risk-preference: 20
+  stress-endurance: 90
+  public-affairs-leaning: 25
+  accumulation-drive: 80
+narrative:
+  oneLiner: 你愿意为更高的上限承担不确定性，也扛得住长周期的高强度投入。
+  strengths:
+    - 目标感强，能在没有反馈的阶段持续投入
+    - 对机会窗口敏感，敢于出手
+  blindspots:
+    - 容易低估失败的代价，缺少保底方案
+    - 连续受挫时缺少缓冲，恢复成本高

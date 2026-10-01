@@ -19,18 +19,28 @@ export interface QuestionsResponse {
   paths: PathSummary[]
 }
 
-export async function fetchQuestions(): Promise<QuestionsResponse> {
-  const res = await fetch('/api/questions')
+export type Grade = 'freshman' | 'sophomore' | 'junior' | 'senior'
+
+/** 诊断响应：结构化结果 + 分数接近的路径 id（设计文档 §10） */
+export interface DiagnosisResponse extends DiagnosisResult {
+  closeMatches: string[]
+}
+
+export async function fetchQuestions(grade: Grade): Promise<QuestionsResponse> {
+  const res = await fetch(`/api/questions?grade=${grade}`)
   if (!res.ok) throw new Error(`获取问卷失败：${res.status}`)
   return (await res.json()) as QuestionsResponse
 }
 
-export async function postDiagnose(answers: Record<string, number>): Promise<DiagnosisResult> {
+export async function postDiagnose(
+  answers: Record<string, number>,
+  grade: Grade,
+): Promise<DiagnosisResponse> {
   const res = await fetch('/api/diagnose', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ answers }),
+    body: JSON.stringify({ answers, grade }),
   })
   if (!res.ok) throw new Error(`诊断失败：${res.status}`)
-  return (await res.json()) as DiagnosisResult
+  return (await res.json()) as DiagnosisResponse
 }

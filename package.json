@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "pnpm -r test",
+    "test": "pnpm --filter @navi/knowledge build && pnpm -r test",
     "lint": "pnpm -r lint",
     "build": "pnpm -r build",
     "dev": "pnpm --parallel -r dev"

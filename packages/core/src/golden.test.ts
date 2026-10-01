@@ -4,7 +4,7 @@ import { diagnose } from './diagnose.js'
 import { GOLDEN_CASES } from './fixtures/golden-cases.js'
 import type { KnowledgeBundle } from './types.js'
 
-const knowledgePath = new URL('../../../knowledge/dist/knowledge.json', import.meta.url)
+const knowledgePath = new URL('../../knowledge/dist/knowledge.json', import.meta.url)
 const hasKnowledge = existsSync(knowledgePath)
 const bundle = hasKnowledge
   ? (JSON.parse(readFileSync(knowledgePath, 'utf8')) as KnowledgeBundle)
@@ -15,7 +15,7 @@ describe('黄金案例集', () => {
     if (!hasKnowledge) {
       console.warn('未找到 knowledge.json，跳过。请先运行 pnpm --filter @navi/knowledge build')
     }
-    expect(true).toBe(true)
+    expect(hasKnowledge, '未找到 packages/knowledge/dist/knowledge.json，请先运行 pnpm --filter @navi/knowledge build').toBe(true)
   })
 
   it('每个案例的答案都指向真实存在的题目', () => {

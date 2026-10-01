@@ -1,37 +1,68 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { fetchQuestions, postDiagnose } from './api.js'
-import type { DiagnosisResult, QuestionsResponse } from './api.js'
+import type { DiagnosisResponse, Grade, QuestionsResponse } from './api.js'
 import { Questionnaire } from './components/Questionnaire.js'
 import { ResultView } from './components/ResultView.js'
 
-type Stage = 'loading' | 'questions' | 'result' | 'error'
+type Stage = 'grade' | 'loading' | 'questions' | 'result' | 'error'
+
+const GRADE_OPTIONS: ReadonlyArray<{ value: Grade; label: string }> = [
+  { value: 'freshman', label: '大一' },
+  { value: 'sophomore', label: '大二' },
+  { value: 'junior', label: '大三' },
+  { value: 'senior', label: '大四及以上' },
+]
 
 export function App() {
-  const [stage, setStage] = useState<Stage>('loading')
+  const [stage, setStage] = useState<Stage>('grade')
+  const [grade, setGrade] = useState<Grade>('freshman')
   const [data, setData] = useState<QuestionsResponse | null>(null)
-  const [result, setResult] = useState<DiagnosisResult | null>(null)
+  const [result, setResult] = useState<DiagnosisResponse | null>(null)
   const [message, setMessage] = useState('')
 
-  useEffect(() => {
-    fetchQuestions()
-      .then(response => {
-        setData(response)
-        setStage('questions')
-      })
-      .catch(error => {
-        setMessage(error instanceof Error ? error.message : '加载失败')
-        setStage('error')
-      })
-  }, [])
+  async function chooseGrade(value: Grade) {
+    setGrade(value)
+    setStage('loading')
+    try {
+      setData(await fetchQuestions(value))
+      setStage('questions')
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : '加载失败')
+      setStage('error')
+    }
+  }
 
   async function handleSubmit(answers: Record<string, number>) {
     try {
-      setResult(await postDiagnose(answers))
+      setResult(await postDiagnose(answers, grade))
       setStage('result')
     } catch (error) {
       setMessage(error instanceof Error ? error.message : '诊断失败')
       setStage('error')
     }
+  }
+
+  if (stage === 'grade') {
+    return (
+      <div className="mx-auto max-w-3xl p-6">
+        <h1 className="mb-2 text-xl font-semibold">Navi</h1>
+        <p className="mb-4 text-gray-600">
+          先选择你现在的年级——不同年级看到的题目和判断依据不同。
+        </p>
+        <div className="flex flex-wrap gap-3">
+          {GRADE_OPTIONS.map(option => (
+            <button
+              key={option.value}
+              type="button"
+              className="border px-4 py-2"
+              onClick={() => chooseGrade(option.value)}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+      </div>
+    )
   }
 
   if (stage === 'loading') return <p className="p-6">加载中……</p>
@@ -40,13 +71,13 @@ export function App() {
     return (
       <div className="p-6">
         <p className="text-red-600">{message}</p>
-        <button type="button" onClick={() => location.reload()}>重试</button>
+        <button type="button" onClick={() => setStage('grade')}>重新开始</button>
       </div>
     )
   }
 
   if (stage === 'result' && result && data) {
-    return <ResultView result={result} paths={data.paths} />
+    return <ResultView result={result} paths={data.paths} closeMatches={result.closeMatches} />
   }
 
   if (!data) return <p className="p-6">加载中……</p>

@@ -1,0 +1,19 @@
+id: undecided-explorer
+name: 探索未定型
+vector:
+  academic-interest: 40
+  gpa-competitiveness: 45
+  discipline-identity: 30
+  cost-tolerance: 40
+  risk-preference: 55
+  stress-endurance: 45
+  public-affairs-leaning: 40
+  accumulation-drive: 55
+narrative:
+  oneLiner: 你还没有确定的方向，这本身不是问题——问题是在大二结束前必须收窄到一两条路。
+  strengths:
+    - 没有过早锁定，保留了较多可能性
+    - 对多个领域都保持开放
+  blindspots:
+    - 「再想想」的窗口会随时间关闭，而不确定的成本在累积
+    - 缺少持续投入的领域，简历上会留下空白
