@@ -1,7 +1,7 @@
 # PROJECT_STATE
 
 > 交接文档。记录继续开发所需的事实，不含讨论过程。
-> 最后更新：2026-10-01 · 工作区 `main` · §8.2 的 Minor 已修复，尚未提交
+> 最后更新：2026-10-02 · 分支 `feat/llm-layer`（计划② 已完成，未合并）
 
 ---
 
@@ -30,7 +30,7 @@
 
 ```
 TypeScript 全栈 · pnpm workspace · Hono · React + Vite + TailwindCSS · Vitest
-大模型：DeepSeek（计划 ② 接入，当前代码零模型调用）
+大模型：DeepSeek，经 Vercel AI SDK v7（ai + @ai-sdk/openai）接入
 ```
 
 ### 目录结构与依赖方向
@@ -38,13 +38,14 @@ TypeScript 全栈 · pnpm workspace · Hono · React + Vite + TailwindCSS · Vit
 ```
 packages/knowledge  ←  纯内容（Markdown/YAML）+ 构建期编译脚本
 packages/core       ←  纯逻辑，零框架依赖，零网络请求
-apps/api            ←  Hono 薄层，编排 core
+packages/llm        ←  提示词与模型编排，只依赖 core 的类型
+apps/api            ←  Hono 薄层，编排 core 与 llm
 apps/web            ←  React SPA，只消费 HTTP 接口
 ```
 
 **依赖规则（由 ESLint 强制，见 `packages/core/eslint.config.js`）**：
 
-- `packages/core` **不得** import `react` / `hono` / `express` / `fastify` / `vite` / `@navi/api` / `@navi/web`
+- `packages/core` **不得** import `react` / `hono` / `express` / `fastify` / `vite` / `ai` / `@ai-sdk/*` / `@navi/llm` / `@navi/api` / `@navi/web`
 - `packages/core` **不得**调用 `fetch` / `XMLHttpRequest`
 - 该规则已验证会拦截违规导入，不是摆设
 
@@ -61,22 +62,26 @@ apps/web            ←  React SPA，只消费 HTTP 接口
 | `packages/core/src/diagnose.ts` | 编排入口 `diagnose()`、`findCloseMatches()` |
 | `packages/knowledge/src/parse.ts` | frontmatter + `@block` 解析 |
 | `packages/knowledge/src/validate.ts` | 校验（**仅警告不阻断**）与全部 schema 类型 |
-| `packages/knowledge/src/build.ts` | 编译 Markdown → `dist/knowledge.json` |
-| `apps/api/src/server.ts` | `createApp(bundle)`，三个端点 |
+| `packages/knowledge/src/build.ts` | 编译 Markdown → `dist/knowledge.json`（含 `boundaries.md`） |
+| `packages/llm/src/context.ts` | **纯函数**：按 §8.2 / §8.5 拼 `<knowledge>` 块 |
+| `packages/llm/src/index.ts` | 读提示词、建 provider、`streamInterpret` / `streamChat` |
+| `packages/llm/prompts/*.md` | 提示词，不硬编码进 TypeScript（§8.8） |
+| `apps/api/src/server.ts` | `createApp(bundle, options?)`，五个端点 |
+| `apps/web/src/components/PathAssistant.tsx` | 解读区 + 追问框，锚在选中的本路径上 |
 | `apps/web/src/App.tsx` | 年级选择 → 问卷 → 结果页 |
 
 ---
 
 ## 4. 当前代码状态
 
-**分支**：`main`，全部提交已合入；旧分支 `worktree-navi-core-pipeline` 停在 `b81ce30`，可直接删除
+**分支**：`feat/llm-layer`（计划② 的 7 个任务，**未合并到 main**）；`main` 停在 `210255f`
 **工作区**：`F:\workspace\大学生生涯规划Agent\Navi`（**仓库根，唯一权威工作树**）
 
 > ⚠️ `.claude/worktrees/navi-core-pipeline/` 是被 `.gitignore` 忽略的**残缺副本**：没有 `docs/`、`AGENTS.md`、`CLAUDE.md`、`eslint.config.js`，`apps/` 是空目录，在该目录下 `pnpm -r lint` 会失败。**不要在副本里开发**，可删除。
 
 ```bash
 pnpm install
-pnpm test        # 107 个测试，全绿
+pnpm test        # 138 个测试，全绿
 pnpm -r build    # tsc --noEmit + vite build，通过
 pnpm -r lint     # 通过
 ```
@@ -85,10 +90,11 @@ pnpm -r lint     # 通过
 
 | 包 | 测试数 | 覆盖内容 |
 |---|---|---|
-| `packages/knowledge` | 14 | frontmatter / 块解析 / 校验规则 / 编译顺序确定性 |
+| `packages/knowledge` | 16 | frontmatter / 块解析 / 校验规则 / 编译顺序确定性 / 诚实边界 |
 | `packages/core` | 61 | 六个算法模块 + 黄金案例集 |
-| `apps/api` | 15 | 三个端点 + 年级分流 + 完整性校验 |
-| `apps/web` | 17 | 问卷组件 + 结果页 + 空题目 / 全不适用显式态 |
+| `packages/llm` | 14 | SDK 冒烟 / 上下文组装 / 模型编排 / 降级 |
+| `apps/api` | 22 | 五个端点 + 年级分流 + 完整性校验 + LLM 降级 |
+| `apps/web` | 25 | 问卷 + 结果页 + 本路径选择 + 解读与追问 |
 
 ### 端到端验证结果（已实测）
 
@@ -96,6 +102,7 @@ pnpm -r lint     # 通过
 - 高学术志趣学生 → `same-discipline-baoyan` match 86.7 居首，画像 `steady-scholar` 0.722
 - 学校无推免资格 → 两条保研路径 `applicable=false`、match=0，附失败原因，路径仍出现在结果中
 - 答案不完整 → HTTP 400
+- **无 API Key 时的降级（计划②验收标准）**：`/api/interpret` 与 `/api/chat` 返回 503 并附明确原因；`/api/diagnose` 仍返回完整的 8 指标 / 7 路径 / 6 画像
 
 ### HTTP 接口
 
@@ -103,7 +110,11 @@ pnpm -r lint     # 通过
 |---|---|---|
 | `GET` | `/api/questions?grade=` | 下发题目、指标、路径摘要（按年级过滤） |
 | `POST` | `/api/diagnose` | 入参 `{ answers, grade }`，返回结构化结果 + `closeMatches` |
+| `POST` | `/api/interpret` | 入参 `{ answers, grade, pathId }`，返回**纯文本流**的个性化解读 |
+| `POST` | `/api/chat` | 入参 `{ answers, grade, pathId, messages }`，返回 **UI 消息流**的追问回答 |
 | `GET` | `/api/knowledge/:pathId` | 单条路径的完整内容块 |
+
+两个 LLM 端点都用 `answers + grade` **服务端重算诊断**，不接受客户端传来的结果（§5.1 确定性）。
 
 ---
 
@@ -186,15 +197,20 @@ match(path)                  = Σ(match_i × W'[i])
 
 ## 7. 未完成任务
 
-### 计划 ②：LLM 层（未开始）
+### 计划 ②：LLM 层（代码已完成，见 `docs/superpowers/plans/2026-10-02-navi-llm-layer.md`）
 
-设计文档 §8 已定义，实现内容：
+- [x] `packages/llm`：提示词落盘 + 上下文组装纯函数 + 模型编排（`streamInterpret` / `streamChat`）
+- [x] `packages/knowledge/boundaries.md` 编译进 bundle（§8.4）
+- [x] `POST /api/interpret`（纯文本流）与 `POST /api/chat`（UI 消息流）
+- [x] 降级：未配置模型时 503，诊断结果不受影响
+- [x] 前端：结果页路径可点选为本路径，解读区 + 追问框
 
-- **个性化解读**：`diagnose` 输出 + 选中的路径知识全文 → 生成解读文本
-- **追问**：上下文 = 学生画像摘要 + 当前路径全文 + 对话历史 + 所有路径的 200–300 字 `summary`
-- **诚实边界**：`packages/knowledge/boundaries.md` 尚未创建（设计文档 §8.4），把「无法回答什么」变成内容资产
-- **流式输出**：Vercel AI SDK（`ai` + `@ai-sdk/openai`，`baseURL` 指向 DeepSeek）
-- **降级**：模型不可用时结构化结果完整可用，仅缺解读文字
+**仍未做**（属于计划②范围但未完成）：
+
+- **有 API Key 的真实模型验证**——本机无 Key，真实输出质量从未跑过（降级路径已实测通过）
+- `boundaries.md` 只有从设计 §8.4 转写的 2 条，内容组未扩充
+
+**Agent 上下文**（用户指定，已在 `packages/llm/src/context.ts` 落实）：各维度得分 + 最终测试结果 + 对话历史 + 本路径介绍全文 + 7 条路径的 summary + 诚实边界。
 
 ### 计划 ③：可视化打磨（未开始）
 
@@ -239,8 +255,18 @@ match(path)                  = Σ(match_i × W'[i])
 
 ### 8.4 待验证项（设计文档 §13）
 
-- 跨路径追问的上下文组织方案（计划 ② 实现后验证）
+- 跨路径追问的上下文组织方案（§13.1）——**已实现，尚未实测**：`buildSystemContent` 按 §8.5 拼装了画像 + 诊断 + 本路径全文 + 全部 summary + 边界，但「2K 字摘要是否够用」「模型是否忽略摘要细节」需要真实模型回答质量来判定
 - `consistencyOf` 的分母 `50` 取自标准差理论最大值，实际作答的标准差远低于此，**可能导致一致性普遍偏高、失去区分度**。需真实作答数据校准
+
+### 8.5 Vercel AI SDK v7 与网上示例（多为 v5）的断裂点
+
+这三处已在代码里处理，但下次动 SDK 时容易踩：
+
+- `messages` 里**不能**出现 `system` 角色，否则抛 `AI_InvalidPromptError`；系统提示要走 `instructions` 选项
+- `useChat` **不接受** `api` 选项，改为 `useChat({ transport: new DefaultChatTransport({ api, body }) })`
+- `ai/test` 导出的是 `MockLanguageModelV3` / `MockLanguageModelV4`（**没有 V2**）；mock 的 `finish` 分片里 `finishReason` 是 `{ unified, raw }`、`usage` 是嵌套对象，不是裸值
+
+`packages/llm/src/sdk-smoke.test.ts` 是这一切的基准，改 SDK 版本后先跑它。
 
 ---
 
@@ -249,11 +275,10 @@ match(path)                  = Σ(match_i × W'[i])
 按依赖顺序：
 
 1. ~~修 `readdirSync` 排序~~（已完成，见 §8.2）
-2. **计划 ②（LLM 层）**——`diagnose` 输出的结构化 JSON 已可直接消费，边界清晰
-3. **内容组并行**：把核心路径的 `status` 提到 `verified`，复核 `weights` / `ideal`，创建 `boundaries.md`
-4. **计划 ③（可视化）**——依赖计划 ② 的接口定稿（解读文本的展示位置）
-
-> §8.2 的修复目前只在工作区，尚未提交。开新工作前先决定：直接提交到 `main`，还是起一条新分支。
+2. ~~计划 ②（LLM 层）~~（代码已完成，见 §7）
+3. **配好 `DEEPSEEK_API_KEY` 跑一次真实模型**——这是计划②唯一未经检验的部分
+4. **内容组并行**：把核心路径的 `status` 提到 `verified`，复核 `weights` / `ideal`，扩充 `boundaries.md`
+5. **计划 ③（可视化）**——依赖计划 ② 的接口定稿（解读文本的展示位置）
 
 开发流程沿用既有约定：`AGENTS.md` 定义了模块边界与硬约束；提交信息用中文、遵循 Conventional Commits；涉及推荐逻辑的改动必须同步更新 `packages/core/src/fixtures/golden-cases.ts`。
 
@@ -270,3 +295,5 @@ pnpm --filter @navi/knowledge build           # 单独重建 dist/knowledge.json
 pnpm --filter @navi/api dev                   # API :3000
 pnpm --filter @navi/web dev                   # 前端 :5173（已配置 /api 代理到 3000）
 ```
+
+**启用真实模型**：把 `.env.example` 复制为 `.env`，填 `DEEPSEEK_API_KEY`（`DEEPSEEK_BASE_URL` 与 `DEEPSEEK_MODEL` 可选，默认指向 `https://api.deepseek.com/v1` 的 `deepseek-chat`）。`.env` 只在 `apps/api/src/index.ts` 读，已被 `.gitignore` 忽略。**不填也能跑**——解读与追开会降级为「暂不可用」，其余结果完整。
