@@ -1,14 +1,20 @@
-import type { DiagnosisResult, PathSummary } from '../api.js'
+import { useState } from 'react'
+import type { DiagnosisResult, Grade, PathSummary } from '../api.js'
+import { PathAssistant } from './PathAssistant.js'
 
 interface Props {
   result: DiagnosisResult
   paths: PathSummary[]
   /** 分数接近的路径 id（设计文档 §10） */
   closeMatches?: string[]
+  answers: Record<string, number>
+  grade: Grade
 }
 
-export function ResultView({ result, paths, closeMatches = [] }: Props) {
+export function ResultView({ result, paths, closeMatches = [], answers, grade }: Props) {
   const pathById = new Map(paths.map(p => [p.id, p]))
+  /** 「本路径」——解读与追问都锚到它。默认取匹配度最高的那条（result.paths 已按匹配度降序） */
+  const [selectedId, setSelectedId] = useState(result.paths[0]?.id ?? '')
   // 全部路径都不成立时不再比较接近度——此时所有 match 都是 0，比较没有意义（设计文档 §10）
   const allInapplicable =
     result.paths.length > 0 && result.paths.every(p => !p.eligibility.applicable)
@@ -53,7 +59,16 @@ export function ResultView({ result, paths, closeMatches = [] }: Props) {
               return (
                 <li key={path.id} className="border p-4">
                   <div className="flex items-baseline justify-between">
-                    <h3 className="font-medium">{meta?.title ?? path.id}</h3>
+                    <label className="flex items-baseline gap-2">
+                      <input
+                        type="radio"
+                        name="path"
+                        checked={selectedId === path.id}
+                        onChange={() => setSelectedId(path.id)}
+                        aria-label={meta?.title ?? path.id}
+                      />
+                      <h3 className="font-medium">{meta?.title ?? path.id}</h3>
+                    </label>
                     {meta?.status === 'draft' && (
                       <span className="text-xs text-amber-600">待核实</span>
                     )}
@@ -84,6 +99,11 @@ export function ResultView({ result, paths, closeMatches = [] }: Props) {
           </ul>
         )}
       </section>
+
+      {/* key = 本路径：换路径即卸载重建，上一路径的解读与对话随之清空（§8.5） */}
+      {selectedId !== '' && (
+        <PathAssistant key={selectedId} answers={answers} grade={grade} pathId={selectedId} />
+      )}
     </div>
   )
 }

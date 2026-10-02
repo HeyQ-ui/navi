@@ -268,6 +268,37 @@ describe('POST /api/chat', () => {
     expect(await res.text()).toContain('保研与考研的时间窗不同。')
   })
 
+  it('把学生的问题真正送进模型（验证 UI 消息 → 模型消息的转换）', async () => {
+    const model = new MockLanguageModelV3({
+      doStream: async () => ({
+        stream: simulateReadableStream({
+          chunks: [
+            { type: 'text-start', id: '1' },
+            { type: 'text-delta', id: '1', delta: '好' },
+            { type: 'text-end', id: '1' },
+            {
+              type: 'finish',
+              finishReason: { unified: 'stop', raw: undefined },
+              usage: {
+                inputTokens: { total: 1, noCache: 1, cacheRead: undefined, cacheWrite: undefined },
+                outputTokens: { total: 1, text: 1, reasoning: undefined },
+              },
+            },
+          ],
+        }),
+      }),
+    })
+
+    const res = await post(createApp(bundle, { model }), '/api/chat', {
+      answers: okAnswers, grade: 'freshman', pathId: 'same-discipline-baoyan',
+      messages: [{ id: 'm1', role: 'user', parts: [{ type: 'text', text: '保研和考研怎么选？' }] }],
+    })
+    // 必须消费流式响应体，模型才会真正被调用
+    await res.text()
+
+    expect(JSON.stringify(model.doStreamCalls[0]!.prompt)).toContain('保研和考研怎么选？')
+  })
+
   it('messages 为空时返回 400', async () => {
     const app = createApp(bundle, { model: mockModel('不该出现') })
     const res = await post(app, '/api/chat', {

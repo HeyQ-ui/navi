@@ -1,7 +1,15 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { ResultView } from './ResultView.js'
 import type { DiagnosisResult, PathSummary } from '../api.js'
+
+// ResultView 内部会挂载 PathAssistant，后者用 useCompletion / useChat 发请求。
+// jsdom 里没有后端，必须替身掉，否则每个 ResultView 用例都会产生未处理的 fetch 失败。
+vi.mock('@ai-sdk/react', () => ({
+  useCompletion: () => ({ completion: '', complete: vi.fn(), isLoading: false, error: undefined }),
+  useChat: () => ({ messages: [], sendMessage: vi.fn(), status: 'ready', error: undefined }),
+}))
 
 const paths: PathSummary[] = [
   { id: 'same-discipline-baoyan', title: '本学科保研', category: 'academic', span: 'same-discipline', status: 'verified', summary: '' },
@@ -33,35 +41,35 @@ const result: DiagnosisResult = {
 
 describe('ResultView', () => {
   it('显示路径名称与匹配分', () => {
-    render(<ResultView result={result} paths={paths} />)
+    render(<ResultView result={result} paths={paths} answers={{}} grade="freshman" />)
     expect(screen.getByText('本学科保研')).toBeInTheDocument()
     expect(screen.getByText(/78/)).toBeInTheDocument()
   })
 
   it('显示置信度百分比', () => {
-    render(<ResultView result={result} paths={paths} />)
+    render(<ResultView result={result} paths={paths} answers={{}} grade="freshman" />)
     expect(screen.getByText(/90%/)).toBeInTheDocument()
   })
 
   it('不适用路径仍然显示，并给出失败原因', () => {
-    render(<ResultView result={result} paths={paths} />)
+    render(<ResultView result={result} paths={paths} answers={{}} grade="freshman" />)
     expect(screen.getByText('考公考编 / 选调生')).toBeInTheDocument()
     expect(screen.getByText(/你的专业没有对口岗位/)).toBeInTheDocument()
   })
 
   it('待核实内容的路径显示角标', () => {
-    render(<ResultView result={result} paths={paths} />)
+    render(<ResultView result={result} paths={paths} answers={{}} grade="freshman" />)
     expect(screen.getByText(/待核实/)).toBeInTheDocument()
   })
 
   it('显示画像归属百分比', () => {
-    render(<ResultView result={result} paths={paths} />)
+    render(<ResultView result={result} paths={paths} answers={{}} grade="freshman" />)
     expect(screen.getByText(/68%/)).toBeInTheDocument()
   })
 
   it('空路径列表时不崩溃', () => {
     const empty: DiagnosisResult = { indicators: {}, paths: [], archetypes: [] }
-    expect(() => render(<ResultView result={empty} paths={[]} />)).not.toThrow()
+    expect(() => render(<ResultView result={empty} paths={[]} answers={{}} grade="freshman" />)).not.toThrow()
   })
 })
 
@@ -72,13 +80,23 @@ describe('ResultView · 接近路径提示（设计文档 §10）', () => {
         result={result}
         paths={paths}
         closeMatches={['same-discipline-baoyan', 'civil-service']}
+        answers={{}}
+        grade="freshman"
       />,
     )
     expect(screen.getByText(/很接近/)).toBeInTheDocument()
   })
 
   it('只有一条路径时不给接近提示', () => {
-    render(<ResultView result={result} paths={paths} closeMatches={['same-discipline-baoyan']} />)
+    render(
+      <ResultView
+        result={result}
+        paths={paths}
+        closeMatches={['same-discipline-baoyan']}
+        answers={{}}
+        grade="freshman"
+      />,
+    )
     expect(screen.queryByText(/很接近/)).not.toBeInTheDocument()
   })
 })
@@ -94,7 +112,7 @@ describe('ResultView · 全部路径不适用（设计文档 §10）', () => {
   }
 
   it('给出「当前没有匹配的路径」汇总提示，同时保留逐条原因', () => {
-    render(<ResultView result={noneApplicable} paths={paths} />)
+    render(<ResultView result={noneApplicable} paths={paths} answers={{}} grade="freshman" />)
     expect(screen.getByText(/当前没有匹配的路径/)).toBeInTheDocument()
     expect(screen.getByText(/你的专业没有对口岗位/)).toBeInTheDocument()
   })
@@ -105,8 +123,34 @@ describe('ResultView · 全部路径不适用（设计文档 §10）', () => {
         result={noneApplicable}
         paths={paths}
         closeMatches={['same-discipline-baoyan', 'civil-service']}
+        answers={{}}
+        grade="freshman"
       />,
     )
     expect(screen.queryByText(/很接近/)).not.toBeInTheDocument()
+  })
+})
+
+describe('ResultView · 本路径选择（设计文档 §8.5）', () => {
+  it('默认选中匹配度最高的那条路径', () => {
+    render(<ResultView result={result} paths={paths} answers={{}} grade="freshman" />)
+    expect(screen.getByRole('radio', { name: /本学科保研/ })).toBeChecked()
+  })
+
+  it('点选另一条路径后选中项改变', async () => {
+    render(<ResultView result={result} paths={paths} answers={{}} grade="freshman" />)
+    await userEvent.click(screen.getByRole('radio', { name: /考公考编/ }))
+    expect(screen.getByRole('radio', { name: /考公考编/ })).toBeChecked()
+    expect(screen.getByRole('radio', { name: /本学科保研/ })).not.toBeChecked()
+  })
+
+  it('切换路径时 PathAssistant 重新挂载，上一路径的解读与对话不会残留', async () => {
+    render(<ResultView result={result} paths={paths} answers={{}} grade="freshman" />)
+    const before = screen.getByPlaceholderText(/追问/)
+
+    await userEvent.click(screen.getByRole('radio', { name: /考公考编/ }))
+
+    // key 变化触发卸载重建，节点身份随之改变——这是「不串台」的可观测证据
+    expect(screen.getByPlaceholderText(/追问/)).not.toBe(before)
   })
 })

@@ -18,6 +18,7 @@ export function App() {
   const [grade, setGrade] = useState<Grade>('freshman')
   const [data, setData] = useState<QuestionsResponse | null>(null)
   const [result, setResult] = useState<DiagnosisResponse | null>(null)
+  const [submittedAnswers, setSubmittedAnswers] = useState<Record<string, number>>({})
   const [message, setMessage] = useState('')
 
   async function chooseGrade(value: Grade) {
@@ -35,6 +36,7 @@ export function App() {
   async function handleSubmit(answers: Record<string, number>) {
     try {
       setResult(await postDiagnose(answers, grade))
+      setSubmittedAnswers(answers)
       setStage('result')
     } catch (error) {
       setMessage(error instanceof Error ? error.message : '诊断失败')
@@ -77,7 +79,15 @@ export function App() {
   }
 
   if (stage === 'result' && result && data) {
-    return <ResultView result={result} paths={data.paths} closeMatches={result.closeMatches} />
+    return (
+      <ResultView
+        result={result}
+        paths={data.paths}
+        closeMatches={result.closeMatches}
+        answers={submittedAnswers}
+        grade={grade}
+      />
+    )
   }
 
   if (!data) return <p className="p-6">加载中……</p>
