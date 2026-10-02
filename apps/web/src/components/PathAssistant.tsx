@@ -1,12 +1,13 @@
 import { useEffect, useMemo } from 'react'
 import { useChat, useCompletion } from '@ai-sdk/react'
 import { DefaultChatTransport } from 'ai'
-import type { Grade } from '../api.js'
 
 interface Props {
-  answers: Record<string, number>
-  grade: Grade
+  /** 解读与追问都锚在这条测评记录上——服务端据此从自己的库取答案（spec §4.2） */
+  assessmentId: string
   pathId: string
+  /** 历史详情带回来的解读。有值就直接显示，不再重新生成（spec §5.2） */
+  interpretation?: string | null
 }
 
 /**
@@ -15,7 +16,9 @@ interface Props {
  * 换路径时由父组件改 key 触发重新挂载，因此这里不必手写重置逻辑——
  * 上一路径的解读文字与对话历史随卸载一起消失。
  */
-export function PathAssistant({ answers, grade, pathId }: Props) {
+export function PathAssistant({ assessmentId, pathId, interpretation }: Props) {
+  const hasStored = interpretation !== undefined && interpretation !== null
+
   const {
     completion, complete, isLoading: interpreting, error: interpretError,
   } = useCompletion({
@@ -24,32 +27,36 @@ export function PathAssistant({ answers, grade, pathId }: Props) {
     // "data"（UI message 事件流）解析：纯文本里没有 data: 事件行，解析结果恒为空串
     // 且不抛错——症状是「生成结束后解读区变空白」。
     streamProtocol: 'text',
-    body: { answers, grade, pathId },
+    body: { assessmentId, pathId },
   })
 
   // v7 的 useChat 不再接受 api 选项，改为显式 transport
   const transport = useMemo(
-    () => new DefaultChatTransport({ api: '/api/chat', body: { answers, grade, pathId } }),
-    [answers, grade, pathId],
+    () => new DefaultChatTransport({ api: '/api/chat', body: { assessmentId, pathId } }),
+    [assessmentId, pathId],
   )
   const {
     messages, sendMessage, status, error: chatError,
   } = useChat({ transport })
 
-  // 进入这条路径就生成一次解读。依赖只认 pathId：同一次会话里答案与年级不会变
   useEffect(() => {
+    // 已有存下来的解读就不重新生成。hook 本身仍要**无条件**调用，
+    // 变的只是这个 effect——写成条件调用 hook 会直接崩。
+    if (hasStored) return
     void complete('')
-  }, [pathId])
+  }, [pathId, hasStored])
+
+  const text = hasStored ? interpretation : completion
 
   return (
     <section className="mx-auto mt-8 max-w-3xl border-t pt-6">
       <h2 className="mb-2 text-lg font-semibold">个性化解读</h2>
-      {interpretError ? (
+      {interpretError !== undefined && !hasStored ? (
         <p className="text-amber-600">个性化解读暂不可用，其余诊断结果不受影响。</p>
-      ) : interpreting && completion === '' ? (
+      ) : !hasStored && interpreting && completion === '' ? (
         <p className="text-gray-500">正在生成……</p>
       ) : (
-        <p className="whitespace-pre-wrap leading-relaxed">{completion}</p>
+        <p className="whitespace-pre-wrap leading-relaxed">{text}</p>
       )}
 
       <h2 className="mb-2 mt-6 text-lg font-semibold">追问</h2>
@@ -64,7 +71,9 @@ export function PathAssistant({ answers, grade, pathId }: Props) {
         ))}
       </ul>
 
-      {chatError && <p className="mb-2 text-amber-600">追问暂时不可用，请稍后重试。</p>}
+      {chatError !== undefined && (
+        <p className="mb-2 text-amber-600">追问暂时不可用，请稍后重试。</p>
+      )}
 
       <form
         onSubmit={event => {

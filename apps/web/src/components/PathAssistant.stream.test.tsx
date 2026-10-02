@@ -22,7 +22,7 @@ function textResponse(text: string) {
   }
 }
 
-const base = { answers: { q1: 4 }, grade: 'freshman' as const }
+const base = { assessmentId: 'a1' }
 
 afterEach(() => {
   vi.unstubAllGlobals()

@@ -1,4 +1,4 @@
-import type { DiagnosisResult, Grade, PathSummary } from '../api.js'
+import type { DiagnosisResult, PathSummary } from '../api.js'
 import { PathAssistant } from './PathAssistant.js'
 
 interface Props {
@@ -6,11 +6,15 @@ interface Props {
   paths: PathSummary[]
   /** 与主推荐路径显示分相同的路径 id，含主推荐自身（设计文档 §9.3） */
   tiedPaths?: string[]
-  answers: Record<string, number>
-  grade: Grade
+  /** 这条结果对应的记录 id——解读与追问现在都锚在记录上，不再重新提交答案 */
+  assessmentId: string
+  /** 历史详情带回来的解读；刚测完时为 undefined，由 PathAssistant 现场生成 */
+  interpretation?: string | null
 }
 
-export function ResultView({ result, paths, tiedPaths = [], answers, grade }: Props) {
+export function ResultView({
+  result, paths, tiedPaths = [], assessmentId, interpretation,
+}: Props) {
   const pathById = new Map(paths.map(p => [p.id, p]))
   // result.paths 已按匹配度降序（core 的 diagnose 保证），取第一条可适用的即最高分可适用路径
   const main = result.paths.find(p => p.eligibility.applicable) ?? null
@@ -112,7 +116,12 @@ export function ResultView({ result, paths, tiedPaths = [], answers, grade }: Pr
 
       {/* 解读与追问锚在主推荐路径上。没有可适用路径时无可锚定对象，整块不挂载 */}
       {main !== null && (
-        <PathAssistant key={main.id} answers={answers} grade={grade} pathId={main.id} />
+        <PathAssistant
+          key={main.id}
+          assessmentId={assessmentId}
+          pathId={main.id}
+          interpretation={interpretation}
+        />
       )}
     </div>
   )

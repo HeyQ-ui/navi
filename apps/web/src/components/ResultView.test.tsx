@@ -55,13 +55,13 @@ const result: DiagnosisResult = {
 
 describe('ResultView', () => {
   it('显示主推荐路径的名称与匹配分', () => {
-    render(<ResultView result={result} paths={paths} answers={{}} grade="freshman" />)
+    render(<ResultView result={result} paths={paths} assessmentId="a1" />)
     expect(screen.getByText('本学科保研')).toBeInTheDocument()
     expect(screen.getByText(/匹配度 78/)).toBeInTheDocument()
   })
 
   it('不再显示置信度', () => {
-    render(<ResultView result={result} paths={paths} answers={{}} grade="freshman" />)
+    render(<ResultView result={result} paths={paths} assessmentId="a1" />)
     expect(screen.queryByText(/置信度/)).not.toBeInTheDocument()
     expect(screen.queryByText(/90%/)).not.toBeInTheDocument()
   })
@@ -78,7 +78,7 @@ describe('ResultView', () => {
         result.paths[0]!,
       ],
     }
-    render(<ResultView result={topInapplicable} paths={paths} answers={{}} grade="freshman" />)
+    render(<ResultView result={topInapplicable} paths={paths} assessmentId="a1" />)
 
     // 判据只看「折叠区里有没有不适用项」：95 分那条若占了主位，折叠区就只剩一条可适用路径，
     // 「含 N 条对你暂不适用」不会出现。只断言标题出现是区分不出来的——两种摆放它都恰好出现一次。
@@ -87,7 +87,7 @@ describe('ResultView', () => {
   })
 
   it('其余路径收进只读折叠区，逐条给出不适用原因', () => {
-    render(<ResultView result={result} paths={paths} answers={{}} grade="freshman" />)
+    render(<ResultView result={result} paths={paths} assessmentId="a1" />)
     expect(screen.getByText(/查看其他 1 条路径/)).toBeInTheDocument()
     expect(screen.getByText(/你的专业没有对口岗位/)).toBeInTheDocument()
     // 折叠区里没有选择控件
@@ -95,23 +95,23 @@ describe('ResultView', () => {
   })
 
   it('待核实内容的路径显示角标', () => {
-    render(<ResultView result={result} paths={paths} answers={{}} grade="freshman" />)
+    render(<ResultView result={result} paths={paths} assessmentId="a1" />)
     expect(screen.getByText(/待核实/)).toBeInTheDocument()
   })
 
   it('显示画像归属百分比', () => {
-    render(<ResultView result={result} paths={paths} answers={{}} grade="freshman" />)
+    render(<ResultView result={result} paths={paths} assessmentId="a1" />)
     expect(screen.getByText(/68%/)).toBeInTheDocument()
   })
 
   it('空路径列表时不崩溃', () => {
     const empty: DiagnosisResult = { indicators: {}, paths: [], archetypes: [] }
-    expect(() => render(<ResultView result={empty} paths={[]} answers={{}} grade="freshman" />)).not.toThrow()
+    expect(() => render(<ResultView result={empty} paths={[]} assessmentId="a1" />)).not.toThrow()
   })
 
   it('无可折叠内容时不渲染折叠区（Review Focus 1）', () => {
     const single: DiagnosisResult = { ...result, paths: [result.paths[0]!] }
-    render(<ResultView result={single} paths={paths} answers={{}} grade="freshman" />)
+    render(<ResultView result={single} paths={paths} assessmentId="a1" />)
     expect(screen.queryByText(/查看其他/)).not.toBeInTheDocument()
   })
 })
@@ -123,8 +123,7 @@ describe('ResultView · 并列提示（设计文档 §9.3）', () => {
         result={result}
         paths={paths}
         tiedPaths={['same-discipline-baoyan', 'civil-service']}
-        answers={{}}
-        grade="freshman"
+        assessmentId="a1"
       />,
     )
     expect(screen.getByText(/对你的分数相同/)).toBeInTheDocument()
@@ -136,8 +135,7 @@ describe('ResultView · 并列提示（设计文档 §9.3）', () => {
         result={result}
         paths={paths}
         tiedPaths={['same-discipline-baoyan']}
-        answers={{}}
-        grade="freshman"
+        assessmentId="a1"
       />,
     )
     expect(screen.queryByText(/对你的分数相同/)).not.toBeInTheDocument()
@@ -155,7 +153,7 @@ describe('ResultView · 全部路径不适用（设计文档 §10）', () => {
   }
 
   it('给出「当前没有匹配的路径」汇总提示，同时保留逐条原因', () => {
-    render(<ResultView result={noneApplicable} paths={paths} answers={{}} grade="freshman" />)
+    render(<ResultView result={noneApplicable} paths={paths} assessmentId="a1" />)
     expect(screen.getByText(/当前没有匹配的路径/)).toBeInTheDocument()
     expect(screen.getByText(/你的专业没有对口岗位/)).toBeInTheDocument()
   })
@@ -166,8 +164,7 @@ describe('ResultView · 全部路径不适用（设计文档 §10）', () => {
         result={noneApplicable}
         paths={paths}
         tiedPaths={['same-discipline-baoyan', 'civil-service']}
-        answers={{}}
-        grade="freshman"
+        assessmentId="a1"
       />,
     )
     // 主推荐卡与汇总提示是同一个三元分支的两支：汇总提示出现即等价于主推荐卡没出现。
@@ -178,14 +175,14 @@ describe('ResultView · 全部路径不适用（设计文档 §10）', () => {
   })
 
   it('全部不适用时不挂载追问区（没有可锚定的路径）', () => {
-    render(<ResultView result={noneApplicable} paths={paths} answers={{}} grade="freshman" />)
+    render(<ResultView result={noneApplicable} paths={paths} assessmentId="a1" />)
     expect(screen.queryByPlaceholderText(/追问/)).not.toBeInTheDocument()
   })
 })
 
 describe('ResultView · 解读锚定主推荐路径（设计文档 §8.5）', () => {
   it('解读区锚在可适用的最高分路径上', () => {
-    render(<ResultView result={result} paths={paths} answers={{}} grade="freshman" />)
+    render(<ResultView result={result} paths={paths} assessmentId="a1" />)
     expect(screen.getByText('解读-same-discipline-baoyan')).toBeInTheDocument()
   })
 })

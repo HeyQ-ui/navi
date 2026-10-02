@@ -29,7 +29,7 @@ function stub(overrides: {
   } as never)
 }
 
-const base = { answers: { q1: 4 }, grade: 'freshman' as const }
+const base = { assessmentId: 'a1' }
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -49,10 +49,23 @@ describe('PathAssistant', () => {
     expect(screen.getByText(/保研是时间窗最紧的一条路/)).toBeInTheDocument()
   })
 
-  it('把本路径与作答一起发给后端（§8.5 的上下文锚点）', () => {
+  it('把记录 id 与路径 id 一起发给后端（服务端据此从自己的库取答案）', () => {
     render(<PathAssistant {...base} pathId="civil-service" />)
     const options = vi.mocked(useCompletion).mock.calls[0]![0] as { body: Record<string, unknown> }
-    expect(options.body).toMatchObject({ grade: 'freshman', pathId: 'civil-service' })
+    expect(options.body).toMatchObject({ assessmentId: 'a1', pathId: 'civil-service' })
+  })
+
+  it('传入已有解读时直接渲染，不再自动生成', () => {
+    const complete = vi.fn()
+    vi.mocked(useCompletion).mockReturnValue({
+      completion: '', complete, isLoading: false, error: undefined,
+    } as never)
+
+    render(<PathAssistant assessmentId="a1" pathId="p1" interpretation="存下来的解读" />)
+
+    expect(screen.getByText('存下来的解读')).toBeInTheDocument()
+    // 已有解读就不该再调一次模型：既省钱，也是「历史详情不重算」的保证（spec §5.2）
+    expect(complete).not.toHaveBeenCalled()
   })
 
   it('解读不可用时显示降级提示，而不是空白', () => {
