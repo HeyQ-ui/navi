@@ -1,6 +1,32 @@
 import { describe, it, expect } from 'vitest'
+import { simulateReadableStream } from 'ai'
+import { MockLanguageModelV3 } from 'ai/test'
+import type { LanguageModel } from 'ai'
 import { createApp } from './server.js'
 import type { KnowledgeBundle } from '@navi/core'
+
+/** 会说固定话的 mock 模型；形状与 packages/llm 的冒烟测试一致 */
+function mockModel(text: string): LanguageModel {
+  return new MockLanguageModelV3({
+    doStream: async () => ({
+      stream: simulateReadableStream({
+        chunks: [
+          { type: 'text-start', id: '1' },
+          { type: 'text-delta', id: '1', delta: text },
+          { type: 'text-end', id: '1' },
+          {
+            type: 'finish',
+            finishReason: { unified: 'stop', raw: undefined },
+            usage: {
+              inputTokens: { total: 1, noCache: 1, cacheRead: undefined, cacheWrite: undefined },
+              outputTokens: { total: 1, text: 1, reasoning: undefined },
+            },
+          },
+        ],
+      }),
+    }),
+  })
+}
 
 function q(id: string, indicator: string) {
   return { id, indicator: indicator as never, text: id, options: ['a','b','c','d','e'], weight: 1 }
@@ -173,5 +199,80 @@ describe('答案完整性与接近路径（设计文档 §5.5、§10）', () => 
     expect(res.status).toBe(200)
     const body = (await res.json()) as { closeMatches: string[] }
     expect(body.closeMatches).toEqual(['same-discipline-baoyan'])
+  })
+})
+
+const okAnswers = { q1: 4, q2: 4, q3: 4 }
+
+function post(app: ReturnType<typeof createApp>, path: string, body: unknown) {
+  return app.request(path, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+}
+
+describe('POST /api/interpret', () => {
+  it('返回流式解读文本', async () => {
+    const app = createApp(bundle, { model: mockModel('你现在的位置是大一。') })
+    const res = await post(app, '/api/interpret', {
+      answers: okAnswers, grade: 'freshman', pathId: 'same-discipline-baoyan',
+    })
+    expect(res.status).toBe(200)
+    expect(await res.text()).toContain('你现在的位置是大一。')
+  })
+
+  it('pathId 不存在时返回 404，不进入模型', async () => {
+    let called = false
+    const spy = new MockLanguageModelV3({
+      doStream: async () => { called = true; throw new Error('不该被调用') },
+    }) as unknown as LanguageModel
+    const app = createApp(bundle, { model: spy })
+    const res = await post(app, '/api/interpret', {
+      answers: okAnswers, grade: 'freshman', pathId: 'not-exist',
+    })
+    expect(res.status).toBe(404)
+    expect(called).toBe(false)
+  })
+
+  it('答案不完整时返回 400，不进入模型', async () => {
+    const app = createApp(bundle, { model: mockModel('不该出现') })
+    const res = await post(app, '/api/interpret', {
+      answers: { q1: 4 }, grade: 'freshman', pathId: 'same-discipline-baoyan',
+    })
+    expect(res.status).toBe(400)
+  })
+
+  it('未配置 API Key 且没有注入模型时返回 503，而不是 500', async () => {
+    const saved = process.env.DEEPSEEK_API_KEY
+    delete process.env.DEEPSEEK_API_KEY
+    try {
+      const res = await post(createApp(bundle), '/api/interpret', {
+        answers: okAnswers, grade: 'freshman', pathId: 'same-discipline-baoyan',
+      })
+      expect(res.status).toBe(503)
+    } finally {
+      if (saved !== undefined) process.env.DEEPSEEK_API_KEY = saved
+    }
+  })
+})
+
+describe('POST /api/chat', () => {
+  it('返回流式回答', async () => {
+    const app = createApp(bundle, { model: mockModel('保研与考研的时间窗不同。') })
+    const res = await post(app, '/api/chat', {
+      answers: okAnswers, grade: 'freshman', pathId: 'same-discipline-baoyan',
+      messages: [{ id: 'm1', role: 'user', parts: [{ type: 'text', text: '保研和考研怎么选？' }] }],
+    })
+    expect(res.status).toBe(200)
+    expect(await res.text()).toContain('保研与考研的时间窗不同。')
+  })
+
+  it('messages 为空时返回 400', async () => {
+    const app = createApp(bundle, { model: mockModel('不该出现') })
+    const res = await post(app, '/api/chat', {
+      answers: okAnswers, grade: 'freshman', pathId: 'same-discipline-baoyan', messages: [],
+    })
+    expect(res.status).toBe(400)
   })
 })

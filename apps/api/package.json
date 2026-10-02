@@ -12,6 +12,8 @@
   "dependencies": {
     "@hono/node-server": "^1.13.7",
     "@navi/core": "workspace:*",
+    "@navi/llm": "workspace:*",
+    "ai": "^7.0.127",
     "hono": "^4.6.14"
   },
   "devDependencies": {

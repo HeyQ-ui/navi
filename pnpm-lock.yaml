@@ -32,6 +32,12 @@ importers:
       '@navi/core':
         specifier: workspace:*
         version: link:../../packages/core
+      '@navi/llm':
+        specifier: workspace:*
+        version: link:../../packages/llm
+      ai:
+        specifier: ^7.0.127
+        version: 7.0.127(zod@4.6.5)
       hono:
         specifier: ^4.6.14
         version: 4.13.12
