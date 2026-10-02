@@ -21,9 +21,9 @@ export interface QuestionsResponse {
 
 export type Grade = 'freshman' | 'sophomore' | 'junior' | 'senior'
 
-/** 诊断响应：结构化结果 + 分数接近的路径 id（设计文档 §10） */
+/** 诊断响应：结构化结果 + 与主推荐路径显示分相同的路径 id（设计文档 §9.3） */
 export interface DiagnosisResponse extends DiagnosisResult {
-  closeMatches: string[]
+  tiedPaths: string[]
 }
 
 export async function fetchQuestions(grade: Grade): Promise<QuestionsResponse> {

@@ -83,7 +83,7 @@ export function App() {
       <ResultView
         result={result}
         paths={data.paths}
-        closeMatches={result.closeMatches}
+        tiedPaths={result.tiedPaths}
         answers={submittedAnswers}
         grade={grade}
       />

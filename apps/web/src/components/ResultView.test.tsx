@@ -1,6 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
 
 // ResultView 内部会挂载 PathAssistant，后者用 useCompletion / useChat 发请求。
 // jsdom 里没有后端，必须替身掉，否则每个 ResultView 用例都会产生未处理的 fetch 失败。
@@ -14,7 +13,7 @@ import { ResultView } from './ResultView.js'
 import type { DiagnosisResult, PathSummary } from '../api.js'
 
 beforeEach(() => {
-  // 解读内容随 pathId 变——这样「换路径不串台」可以直接断言文本，而不是靠节点身份间接推断
+  // 解读内容随 pathId 变，这样「解读锚在哪条路径」可以直接断言文本
   vi.mocked(useCompletion).mockImplementation(((options: { body: { pathId: string } }) => ({
     completion: `解读-${options.body.pathId}`,
     complete: vi.fn(),
@@ -55,21 +54,44 @@ const result: DiagnosisResult = {
 }
 
 describe('ResultView', () => {
-  it('显示路径名称与匹配分', () => {
+  it('显示主推荐路径的名称与匹配分', () => {
     render(<ResultView result={result} paths={paths} answers={{}} grade="freshman" />)
     expect(screen.getByText('本学科保研')).toBeInTheDocument()
-    expect(screen.getByText(/78/)).toBeInTheDocument()
+    expect(screen.getByText(/匹配度 78/)).toBeInTheDocument()
   })
 
-  it('显示置信度百分比', () => {
+  it('不再显示置信度', () => {
     render(<ResultView result={result} paths={paths} answers={{}} grade="freshman" />)
-    expect(screen.getByText(/90%/)).toBeInTheDocument()
+    expect(screen.queryByText(/置信度/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/90%/)).not.toBeInTheDocument()
   })
 
-  it('不适用路径仍然显示，并给出失败原因', () => {
+  it('主推荐只取可适用路径：硬性不适用的高分路径落进折叠区', () => {
+    const topInapplicable: DiagnosisResult = {
+      ...result,
+      paths: [
+        {
+          id: 'civil-service', match: 95, confidence: 0.5,
+          eligibility: { applicable: false, hardFailures: [{ id: 'x', severity: 'hard', message: '你的专业没有对口岗位' }], softWarnings: [] },
+          contributions: [],
+        },
+        result.paths[0]!,
+      ],
+    }
+    render(<ResultView result={topInapplicable} paths={paths} answers={{}} grade="freshman" />)
+
+    // 判据只看「折叠区里有没有不适用项」：95 分那条若占了主位，折叠区就只剩一条可适用路径，
+    // 「含 N 条对你暂不适用」不会出现。只断言标题出现是区分不出来的——两种摆放它都恰好出现一次。
+    expect(screen.getByText(/含 1 条对你暂不适用/)).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: '本学科保研' })).toBeInTheDocument()
+  })
+
+  it('其余路径收进只读折叠区，逐条给出不适用原因', () => {
     render(<ResultView result={result} paths={paths} answers={{}} grade="freshman" />)
-    expect(screen.getByText('考公考编 / 选调生')).toBeInTheDocument()
+    expect(screen.getByText(/查看其他 1 条路径/)).toBeInTheDocument()
     expect(screen.getByText(/你的专业没有对口岗位/)).toBeInTheDocument()
+    // 折叠区里没有选择控件
+    expect(screen.queryByRole('radio')).not.toBeInTheDocument()
   })
 
   it('待核实内容的路径显示角标', () => {
@@ -86,33 +108,39 @@ describe('ResultView', () => {
     const empty: DiagnosisResult = { indicators: {}, paths: [], archetypes: [] }
     expect(() => render(<ResultView result={empty} paths={[]} answers={{}} grade="freshman" />)).not.toThrow()
   })
+
+  it('无可折叠内容时不渲染折叠区（Review Focus 1）', () => {
+    const single: DiagnosisResult = { ...result, paths: [result.paths[0]!] }
+    render(<ResultView result={single} paths={paths} answers={{}} grade="freshman" />)
+    expect(screen.queryByText(/查看其他/)).not.toBeInTheDocument()
+  })
 })
 
-describe('ResultView · 接近路径提示（设计文档 §10）', () => {
-  it('多条路径分数接近时给出提示', () => {
+describe('ResultView · 并列提示（设计文档 §9.3）', () => {
+  it('显示分相同时一并列出，并说明差异不在谁更合适', () => {
     render(
       <ResultView
         result={result}
         paths={paths}
-        closeMatches={['same-discipline-baoyan', 'civil-service']}
+        tiedPaths={['same-discipline-baoyan', 'civil-service']}
         answers={{}}
         grade="freshman"
       />,
     )
-    expect(screen.getByText(/很接近/)).toBeInTheDocument()
+    expect(screen.getByText(/对你的分数相同/)).toBeInTheDocument()
   })
 
-  it('只有一条路径时不给接近提示', () => {
+  it('只有主推荐一条时不提示并列', () => {
     render(
       <ResultView
         result={result}
         paths={paths}
-        closeMatches={['same-discipline-baoyan']}
+        tiedPaths={['same-discipline-baoyan']}
         answers={{}}
         grade="freshman"
       />,
     )
-    expect(screen.queryByText(/很接近/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/对你的分数相同/)).not.toBeInTheDocument()
   })
 })
 
@@ -132,52 +160,32 @@ describe('ResultView · 全部路径不适用（设计文档 §10）', () => {
     expect(screen.getByText(/你的专业没有对口岗位/)).toBeInTheDocument()
   })
 
-  it('此时不再给出「分数很接近」提示', () => {
+  it('此时不给并列提示，且原因仍逐条留在折叠区（Review Focus 1）', () => {
     render(
       <ResultView
         result={noneApplicable}
         paths={paths}
-        closeMatches={['same-discipline-baoyan', 'civil-service']}
+        tiedPaths={['same-discipline-baoyan', 'civil-service']}
         answers={{}}
         grade="freshman"
       />,
     )
-    expect(screen.queryByText(/很接近/)).not.toBeInTheDocument()
+    // 主推荐卡与汇总提示是同一个三元分支的两支：汇总提示出现即等价于主推荐卡没出现。
+    // （不能拿「页面上有没有匹配度」当判据——折叠区逐条渲染匹配度，必然命中。）
+    expect(screen.getByText(/当前没有匹配的路径/)).toBeInTheDocument()
+    expect(screen.queryByText(/对你的分数相同/)).not.toBeInTheDocument()
+    expect(screen.getByText(/含 2 条对你暂不适用/)).toBeInTheDocument()
+  })
+
+  it('全部不适用时不挂载追问区（没有可锚定的路径）', () => {
+    render(<ResultView result={noneApplicable} paths={paths} answers={{}} grade="freshman" />)
+    expect(screen.queryByPlaceholderText(/追问/)).not.toBeInTheDocument()
   })
 })
 
-describe('ResultView · 本路径选择（设计文档 §8.5）', () => {
-  it('默认选中匹配度最高的那条路径', () => {
-    render(<ResultView result={result} paths={paths} answers={{}} grade="freshman" />)
-    expect(screen.getByRole('radio', { name: /本学科保研/ })).toBeChecked()
-  })
-
-  it('点选另一条路径后选中项改变', async () => {
-    render(<ResultView result={result} paths={paths} answers={{}} grade="freshman" />)
-    await userEvent.click(screen.getByRole('radio', { name: /考公考编/ }))
-    expect(screen.getByRole('radio', { name: /考公考编/ })).toBeChecked()
-    expect(screen.getByRole('radio', { name: /本学科保研/ })).not.toBeChecked()
-  })
-
-  it('切换路径时上一路径的解读消失、新路径的解读出现（不串台）', async () => {
+describe('ResultView · 解读锚定主推荐路径（设计文档 §8.5）', () => {
+  it('解读区锚在可适用的最高分路径上', () => {
     render(<ResultView result={result} paths={paths} answers={{}} grade="freshman" />)
     expect(screen.getByText('解读-same-discipline-baoyan')).toBeInTheDocument()
-
-    await userEvent.click(screen.getByRole('radio', { name: /考公考编/ }))
-
-    expect(screen.queryByText('解读-same-discipline-baoyan')).not.toBeInTheDocument()
-    expect(screen.getByText('解读-civil-service')).toBeInTheDocument()
-  })
-
-  it('切换路径时 PathAssistant 重新挂载（否则真实 hook 的对话状态不会重置）', async () => {
-    // 上面那条断言的是「数据接对了」，这条断言的是「组件被重建了」——真实 useChat /
-    // useCompletion 的对话状态挂在组件实例上，只有卸载重建才会清空。缺 key 时上面那条
-    // 仍然会通过（mock 每次渲染都按新 pathId 给值），所以两条必须都在。
-    render(<ResultView result={result} paths={paths} answers={{}} grade="freshman" />)
-    const before = screen.getByPlaceholderText(/追问/)
-
-    await userEvent.click(screen.getByRole('radio', { name: /考公考编/ }))
-
-    expect(screen.getByPlaceholderText(/追问/)).not.toBe(before)
   })
 })
