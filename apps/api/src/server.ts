@@ -4,6 +4,9 @@ import { FIVE_POINT_SCALE, diagnose, findTiedPaths } from '@navi/core'
 import type { Answers, KnowledgeBundle, Question } from '@navi/core'
 import { streamChat, streamInterpret } from '@navi/llm'
 import type { LanguageModel, ModelMessage } from 'ai'
+import { openStore, defaultDbPath } from './store.js'
+import type { Store, Source, AssessmentRecord } from './store.js'
+import { registerAuthRoutes, requireSession, sessionUser } from './auth.js'
 
 type Grade = 'freshman' | 'sophomore' | 'junior' | 'senior'
 
@@ -17,12 +20,16 @@ const MAX_CHAT_CHARS = 8000
 export interface AppOptions {
   /** 测试注入用；生产不传，走 DeepSeek */
   model?: LanguageModel
+  /** 会话签名密钥。未配置时认证与受保护端点一律 503 */
+  jwtSecret?: string
+  /** 测试注入用；生产不传，懒开 apps/api/data/navi.db */
+  store?: Store
 }
 
-/** pathId 必须指向真实存在的路径——不能拿空路径去问模型 */
-function findPathId(body: unknown, bundle: KnowledgeBundle): string | null {
-  const pathId = String((body as { pathId?: unknown }).pathId ?? '')
-  return bundle.paths.some(p => p.id === pathId) ? pathId : null
+/** 测评来源。缺省 self；非法值返回 null（调用方转 400） */
+function parseSource(value: unknown): Source | null {
+  if (value === undefined) return 'self'
+  return value === 'self' || value === 'other' ? value : null
 }
 
 /** UI 消息（useChat 的格式）→ 纯文本对话历史。只取文本，不把 parts 结构传给模型 */
@@ -109,6 +116,18 @@ function validateAnswers(bundle: KnowledgeBundle, body: unknown): AnswersValidat
 export function createApp(bundle: KnowledgeBundle, options: AppOptions = {}): Hono {
   const app = new Hono()
 
+  let lazyStore: Store | null = null
+  function getStore(): Store {
+    // 懒开：只有真用到存储的端点才会落盘。若在装配期就打开，
+    // 那些只用 createApp(bundle) 的公开端点测试会在仓库里创建出真实数据库文件。
+    lazyStore ??= options.store ?? openStore(defaultDbPath())
+    return lazyStore
+  }
+
+  // 传的是 thunk 本身而不是调用结果——写成 getStore() 就等于在装配期打开数据库
+  const auth = { store: getStore, jwtSecret: options.jwtSecret ?? process.env.JWT_SECRET }
+  registerAuthRoutes(app, auth)
+
   /** 各端点共用的请求体解析 */
   async function readBody(c: Context): Promise<unknown | Response> {
     try {
@@ -116,6 +135,23 @@ export function createApp(bundle: KnowledgeBundle, options: AppOptions = {}): Ho
     } catch {
       return c.json({ error: '请求体不是合法 JSON' }, 400)
     }
+  }
+
+  /**
+   * 按 assessmentId 取本人的记录；取不到返回 404 响应。
+   * 「不存在」与「不属于本人」合并成同一个 404，不泄露他人记录的存在性。
+   */
+  function loadRecord(c: Context, store: Store, body: unknown): AssessmentRecord | Response {
+    const id = String((body as { assessmentId?: unknown }).assessmentId ?? '')
+    const record = store.findAssessment(id, sessionUser(c).id)
+    if (record === null) return c.json({ error: `测评记录不存在：${id}` }, 404)
+    return record
+  }
+
+  /** pathId 必须是这条记录快照里真实存在的路径——不能拿空路径去问模型 */
+  function pathIdInRecord(body: unknown, record: AssessmentRecord): string | null {
+    const id = String((body as { pathId?: unknown }).pathId ?? '')
+    return record.result.paths.some(p => p.id === id) ? id : null
   }
 
   app.get('/api/questions', c => {
@@ -130,30 +166,44 @@ export function createApp(bundle: KnowledgeBundle, options: AppOptions = {}): Ho
     })
   })
 
-  app.post('/api/diagnose', async c => {
+  app.post('/api/diagnose', requireSession(auth), async c => {
     const body = await readBody(c)
     if (body instanceof Response) return body
 
     const v = validateAnswers(bundle, body)
     if (!v.ok) return c.json({ error: v.error }, 400)
+
+    const source = parseSource((body as { source?: unknown }).source)
+    if (source === null) return c.json({ error: 'source 只能是 self 或 other' }, 400)
 
     const scoped: KnowledgeBundle = { ...bundle, questions: v.scopedQuestions }
     const result = diagnose(v.answers, scoped)
 
+    // 落库在服务端内部：手里已经有 answers 与刚算出的 result，不必让客户端再发一次，
+    // 也不用信客户端说「存什么」。只 INSERT，历史因此天然是追加的。
+    const assessmentId = getStore().createAssessment({
+      userId: sessionUser(c).id,
+      source,
+      grade: v.grade ?? null,
+      answers: v.answers,
+      result,
+    })
+
     return c.json({
       ...result,
       tiedPaths: findTiedPaths(result).map(p => p.id),
+      assessmentId,
     })
   })
 
-  app.post('/api/interpret', async c => {
+  app.post('/api/interpret', requireSession(auth), async c => {
     const body = await readBody(c)
     if (body instanceof Response) return body
 
-    const v = validateAnswers(bundle, body)
-    if (!v.ok) return c.json({ error: v.error }, 400)
+    const record = loadRecord(c, getStore(), body)
+    if (record instanceof Response) return record
 
-    const pathId = findPathId(body, bundle)
+    const pathId = pathIdInRecord(body, record)
     if (pathId === null) {
       const asked = String((body as { pathId?: unknown }).pathId ?? '')
       return c.json({ error: `路径不存在：${asked}` }, 404)
@@ -165,10 +215,12 @@ export function createApp(bundle: KnowledgeBundle, options: AppOptions = {}): Ho
       return c.json({ error: '个性化解读暂不可用：服务端未配置模型' }, 503)
     }
 
-    const scoped: KnowledgeBundle = { ...bundle, questions: v.scopedQuestions }
+    const scoped: KnowledgeBundle = {
+      ...bundle, questions: scopeQuestions(bundle.questions, parseGrade(record.grade)),
+    }
     try {
       return streamInterpret(
-        { answers: v.answers, pathId, bundle: scoped },
+        { answers: record.answers, pathId, bundle: scoped },
         options,
       ).toTextStreamResponse()
     } catch (error) {
@@ -178,14 +230,14 @@ export function createApp(bundle: KnowledgeBundle, options: AppOptions = {}): Ho
     }
   })
 
-  app.post('/api/chat', async c => {
+  app.post('/api/chat', requireSession(auth), async c => {
     const body = await readBody(c)
     if (body instanceof Response) return body
 
-    const v = validateAnswers(bundle, body)
-    if (!v.ok) return c.json({ error: v.error }, 400)
+    const record = loadRecord(c, getStore(), body)
+    if (record instanceof Response) return record
 
-    const pathId = findPathId(body, bundle)
+    const pathId = pathIdInRecord(body, record)
     if (pathId === null) {
       const asked = String((body as { pathId?: unknown }).pathId ?? '')
       return c.json({ error: `路径不存在：${asked}` }, 404)
@@ -206,10 +258,12 @@ export function createApp(bundle: KnowledgeBundle, options: AppOptions = {}): Ho
       return c.json({ error: '追问暂不可用：服务端未配置模型' }, 503)
     }
 
-    const scoped: KnowledgeBundle = { ...bundle, questions: v.scopedQuestions }
+    const scoped: KnowledgeBundle = {
+      ...bundle, questions: scopeQuestions(bundle.questions, parseGrade(record.grade)),
+    }
     try {
       return streamChat(
-        { answers: v.answers, pathId, messages: recent, bundle: scoped },
+        { answers: record.answers, pathId, messages: recent, bundle: scoped },
         options,
       ).toUIMessageStreamResponse()
     } catch (error) {
