@@ -5,7 +5,7 @@ import { streamText } from 'ai'
 import type { LanguageModel, ModelMessage } from 'ai'
 import { createOpenAI } from '@ai-sdk/openai'
 import { diagnose } from '@navi/core'
-import type { Answers, KnowledgeBundle } from '@navi/core'
+import type { Answers, DiagnosisResult, KnowledgeBundle } from '@navi/core'
 import { buildChatMessages, buildInterpretMessages } from './context.js'
 import type { KnowledgeSlice } from './context.js'
 
@@ -35,9 +35,18 @@ export function createDeepSeekModel(env: NodeJS.ProcessEnv = process.env): Langu
   return provider.chat(env.DEEPSEEK_MODEL || 'deepseek-chat')
 }
 
-/** 服务端自己重算诊断，不接受客户端传来的结果（§5.1 确定性） */
-function sliceOf(answers: Answers, bundle: KnowledgeBundle, pathId: string): KnowledgeSlice {
-  return { bundle, result: diagnose(answers, bundle), pathId, answers }
+/**
+ * 结果只能来自服务端自己：重算，或读本服务端落库的快照。绝不接受请求体里的结果
+ * （设计文档 §1.3「确定性优先」、§4.1 决策一）。
+ *
+ * 传预置 result 是为了让解读与用户眼前显示的数字一致：知识库会在测评记录存续期间
+ * 被重建（§12.2 内容工作与开发并行），而 bundle 在进程启动时读一次，跨重启重算会
+ * 得出与页面不同的匹配度——页面写着 55、模型却解释 62。
+ */
+function sliceOf(
+  answers: Answers, bundle: KnowledgeBundle, pathId: string, result?: DiagnosisResult,
+): KnowledgeSlice {
+  return { bundle, result: result ?? diagnose(answers, bundle), pathId, answers }
 }
 
 /**
@@ -57,10 +66,10 @@ function splitSystem(messages: ModelMessage[]): {
 type StreamResult = ReturnType<typeof streamText>
 
 export function streamInterpret(
-  input: { answers: Answers; pathId: string; bundle: KnowledgeBundle },
+  input: { answers: Answers; pathId: string; bundle: KnowledgeBundle; result?: DiagnosisResult },
   options: StreamOptions = {},
 ): StreamResult {
-  const knowledge = sliceOf(input.answers, input.bundle, input.pathId)
+  const knowledge = sliceOf(input.answers, input.bundle, input.pathId, input.result)
   const { instructions, turns } = splitSystem(
     buildInterpretMessages({ knowledge, systemPrompt: loadPrompt('interpret') }),
   )
@@ -77,10 +86,11 @@ export function streamChat(
     pathId: string
     messages: ModelMessage[]
     bundle: KnowledgeBundle
+    result?: DiagnosisResult
   },
   options: StreamOptions = {},
 ): StreamResult {
-  const knowledge = sliceOf(input.answers, input.bundle, input.pathId)
+  const knowledge = sliceOf(input.answers, input.bundle, input.pathId, input.result)
   const { instructions, turns } = splitSystem(
     buildChatMessages({
       knowledge,

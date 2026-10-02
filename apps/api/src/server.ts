@@ -32,6 +32,31 @@ function parseSource(value: unknown): Source | null {
   return value === 'self' || value === 'other' ? value : null
 }
 
+type StreamResult = ReturnType<typeof streamInterpret>
+
+/**
+ * 流正常结束后把解读全文补写回记录（spec §4.7）。
+ *
+ * 必须在 finishReason 上设闸门：`.text` 在流中途出错时会**静默 resolve 出已累积的
+ * 半截文本**，不抛错（packages/llm/src/index.test.ts:126 记录了这个缺陷）。
+ * 直接 `await .text` 再写库会把残缺解读存进去，而它会被当成「已生成」从此不再重算
+ * ——这是最坏的组合。已实测：正常流 finishReason 为 'stop'，中途出错为 'error'，
+ * 且响应体被消费后该 promise 照常 resolve。
+ */
+function persistInterpretation(stream: StreamResult, store: Store, recordId: string): void {
+  void (async () => {
+    try {
+      if (await stream.finishReason !== 'stop') return
+      const text = await stream.text
+      if (text.trim() === '') return
+      store.setInterpretation(recordId, text)
+    } catch {
+      // 写失败只记日志：响应已经开始流向用户，这里不该再抛
+      console.warn(`[api] 解读写入失败：${recordId}`)
+    }
+  })()
+}
+
 /** UI 消息（useChat 的格式）→ 纯文本对话历史。只取文本，不把 parts 结构传给模型 */
 function toModelMessages(raw: unknown): ModelMessage[] {
   if (!Array.isArray(raw)) return []
@@ -219,10 +244,14 @@ export function createApp(bundle: KnowledgeBundle, options: AppOptions = {}): Ho
       ...bundle, questions: scopeQuestions(bundle.questions, parseGrade(record.grade)),
     }
     try {
-      return streamInterpret(
-        { answers: record.answers, pathId, bundle: scoped },
+      const stream = streamInterpret(
+        // result 用落库的快照而非重算：页面显示的就是它，重算会让解释与显示不一致
+        { answers: record.answers, pathId, bundle: scoped, result: record.result },
         options,
-      ).toTextStreamResponse()
+      )
+      const response = stream.toTextStreamResponse()
+      persistInterpretation(stream, getStore(), record.id)
+      return response
     } catch (error) {
       // 只兜得住同步的装配期错误（读提示词失败等）。超时/欠费发生在流被消费之后，
       // 那时 200 已经发出，由前端把流错误显示成「暂不可用」。
@@ -263,7 +292,7 @@ export function createApp(bundle: KnowledgeBundle, options: AppOptions = {}): Ho
     }
     try {
       return streamChat(
-        { answers: record.answers, pathId, messages: recent, bundle: scoped },
+        { answers: record.answers, pathId, messages: recent, bundle: scoped, result: record.result },
         options,
       ).toUIMessageStreamResponse()
     } catch (error) {

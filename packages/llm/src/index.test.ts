@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { simulateReadableStream } from 'ai'
 import { MockLanguageModelV3 } from 'ai/test'
+import { diagnose } from '@navi/core'
 import { streamInterpret, streamChat, createDeepSeekModel } from './index.js'
 import type { Answers, KnowledgeBundle } from '@navi/core'
 
@@ -71,6 +72,25 @@ describe('streamInterpret', () => {
     expect(serialized).toContain('只能')
     expect(serialized).toContain('<knowledge>')
     expect(serialized).toContain('大三下夏令营')
+  })
+
+  it('传入预置 result 时上下文用它，不重算（快照与页面显示一致）', async () => {
+    const model = mockModel()
+    // 造一份与重算结果必然不同的快照：把匹配度改成一个明显是伪造的值
+    const snapshot = diagnose(answers, bundle)
+    const tampered = {
+      ...snapshot,
+      paths: snapshot.paths.map(p => ({ ...p, match: 12 })),
+    }
+
+    await streamInterpret(
+      { answers, pathId: 'same-discipline-baoyan', bundle, result: tampered },
+      { model },
+    ).text
+
+    // 知识库会在测评记录存续期间被重建，而 bundle 在进程启动时读一次。
+    // 若上下文重算，用户会看到页面写着 55、模型却解释 62。
+    expect(JSON.stringify(model.doStreamCalls[0]!.prompt)).toContain('匹配度 12')
   })
 })
 

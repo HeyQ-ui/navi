@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { simulateReadableStream } from 'ai'
 import { MockLanguageModelV3 } from 'ai/test'
 import type { LanguageModel } from 'ai'
@@ -341,6 +341,50 @@ describe('POST /api/interpret', () => {
     } finally {
       if (saved !== undefined) process.env.DEEPSEEK_API_KEY = saved
     }
+  })
+
+  it('流正常结束后，解读全文写入该记录', async () => {
+    const store = openStore(':memory:')
+    const { app, cookie } = await authedApp(bundle, {
+      model: mockModel('你现在的位置是大一。'), store,
+    })
+    const assessmentId = await diagnoseOnce(app, cookie)
+
+    const res = await post(app, '/api/interpret',
+      { assessmentId, pathId: 'same-discipline-baoyan' }, cookie)
+    expect(res.status).toBe(200)
+    await res.text() // 必须消费响应体，流才会真的走完
+
+    await vi.waitFor(() => {
+      expect(store.findAssessment(assessmentId, meId(store))?.interpretation)
+        .toBe('你现在的位置是大一。')
+    })
+  })
+
+  it('流中途出错时绝不写入半截解读', async () => {
+    const brokenMidStream = new MockLanguageModelV3({
+      doStream: async () => ({
+        stream: simulateReadableStream({
+          chunks: [
+            { type: 'text-start', id: '1' },
+            { type: 'text-delta', id: '1', delta: '前半句' },
+            { type: 'error', error: new Error('模型中途断开') },
+          ],
+        }),
+      }) as never,
+    })
+
+    const store = openStore(':memory:')
+    const { app, cookie } = await authedApp(bundle, { model: brokenMidStream, store })
+    const assessmentId = await diagnoseOnce(app, cookie)
+
+    const res = await post(app, '/api/interpret',
+      { assessmentId, pathId: 'same-discipline-baoyan' }, cookie)
+    await res.text().catch(() => undefined) // 出错流可能直接断，容忍
+
+    // 给异步写入足够的窗口：若实现是错的，这 100ms 里必然已经写进去了
+    await new Promise(resolve => setTimeout(resolve, 100))
+    expect(store.findAssessment(assessmentId, meId(store))?.interpretation).toBeNull()
   })
 })
 
