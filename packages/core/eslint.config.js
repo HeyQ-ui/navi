@@ -8,7 +8,7 @@ export default [
       'no-restricted-imports': ['error', {
         patterns: [
           {
-            group: ['react', 'react-*', 'hono', 'express', 'fastify', 'vite', '@navi/api', '@navi/web'],
+            group: ['react', 'react-*', 'hono', 'express', 'fastify', 'vite', 'ai', '@ai-sdk/*', '@navi/llm', '@navi/api', '@navi/web'],
             message: 'core 是纯逻辑层，不得引入框架或上层依赖（设计文档 §3.3）',
           },
         ],

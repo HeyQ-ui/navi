@@ -35,3 +35,6 @@ Thumbs.db
 
 # Claude Code worktrees（本地工作区，不纳入版本控制）
 .claude/worktrees/
+
+# superpowers 执行计划的本地工作区（ledger、brief、review 包，均为临时产物）
+.superpowers/
