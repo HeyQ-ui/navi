@@ -20,6 +20,10 @@ export function PathAssistant({ answers, grade, pathId }: Props) {
     completion, complete, isLoading: interpreting, error: interpretError,
   } = useCompletion({
     api: '/api/interpret',
+    // 服务端用 toTextStreamResponse()，响应体是纯文本。useCompletion 默认按
+    // "data"（UI message 事件流）解析：纯文本里没有 data: 事件行，解析结果恒为空串
+    // 且不抛错——症状是「生成结束后解读区变空白」。
+    streamProtocol: 'text',
     body: { answers, grade, pathId },
   })
 
