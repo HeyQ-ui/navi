@@ -566,4 +566,21 @@ describe('GET /api/assessments/:id（单条完整）', () => {
     const body = (await res.json()) as { assessments: Array<{ id: string }> }
     expect(body.assessments.map(a => a.id)).toEqual([good])
   })
+
+  it('result 有 paths 但元素缺 eligibility 时也跳过，不把列表打成 500', async () => {
+    const { app, cookie, store, userId } = await authedApp()
+    const good = await diagnoseOnce(app, cookie)
+    // 字段改名 / 旧 schema 残留的典型形态：paths 在、eligibility 不在。
+    // 只判 Array.isArray(paths) 的守卫会放行它，随后 findTiedPaths 读
+    // p.eligibility.applicable 时抛 TypeError，把整个历史列表打成 500。
+    store.createAssessment({
+      userId, source: 'self', grade: null, answers: {},
+      result: { paths: [{ id: 'x' }] } as never,
+    })
+
+    const res = await app.request('/api/assessments', { headers: { cookie } })
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as { assessments: Array<{ id: string }> }
+    expect(body.assessments.map(a => a.id)).toEqual([good])
+  })
 })

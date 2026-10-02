@@ -310,10 +310,16 @@ export function createApp(bundle: KnowledgeBundle, options: AppOptions = {}): Ho
   app.get('/api/assessments', requireSession(auth), c => {
     const rows = getStore().listAssessments(sessionUser(c).id)
     const titles = new Map(bundle.paths.map(p => [p.id, p.title]))
-    return c.json({
-      assessments: rows.map(row => {
+
+    const assessments = []
+    for (const row of rows) {
+      // 逐行兜住：库里的 result 可能是旧 schema 残留——有 paths 数组、但元素里没有
+      // eligibility（字段改名就是这种形态）。findTiedPaths 会读 p.eligibility.applicable
+      // 而抛错，一行坏数据就把整个历史列表打成 500。
+      // 守卫放在「用到它的地方」，因为只有这里知道推导需要什么形状。
+      try {
         const main = findTiedPaths(row.result)[0]
-        return {
+        assessments.push({
           id: row.id,
           source: row.source,
           grade: row.grade,
@@ -322,9 +328,13 @@ export function createApp(bundle: KnowledgeBundle, options: AppOptions = {}): Ho
           // 标题由服务端补，前端就不必为了显示中文名再取一次 /api/questions
           mainPathTitle: main === undefined ? null : (titles.get(main.id) ?? main.id),
           match: main === undefined ? null : Math.round(main.match),
-        }
-      }),
-    })
+        })
+      } catch {
+        console.warn(`[api] 跳过无法汇总的测评记录：${row.id}`)
+      }
+    }
+
+    return c.json({ assessments })
   })
 
   app.get('/api/assessments/:id', requireSession(auth), c => {

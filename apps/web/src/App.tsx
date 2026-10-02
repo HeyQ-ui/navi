@@ -86,7 +86,8 @@ export function App() {
       <div className="mx-auto max-w-3xl p-6">
         <h1 className="mb-2 text-xl font-semibold">你好，{username}</h1>
         <p className="mb-4 text-gray-600">
-          这次要做的是谁的测评？两种都会留存记录，但只有「测测自己」的结果会用来给你解读。
+          这次要做的是谁的测评？两种都会留存记录，解读讲的都是被测量的那个人——
+          替别人测的话，把解读转给他看就行。
         </p>
         <div className="flex flex-wrap gap-3">
           <button

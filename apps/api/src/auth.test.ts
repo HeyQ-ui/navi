@@ -115,6 +115,23 @@ describe('POST /api/auth/logout 与 GET /api/auth/me', () => {
 })
 
 describe('会话校验', () => {
+  it('token 自带 exp，与服务端声明的有效期一致', async () => {
+    // hono 的 verify 是 `if (exp && payload.exp !== void 0)`——payload 里没有 exp
+    // 就整段跳过过期检查。只靠 cookie 的 maxAge 拦的是浏览器，不是服务端：
+    // token 一旦离开浏览器（代理日志、共享电脑）就能被无限期重放。
+    const res = await post(makeApp(store), '/api/auth/register',
+      { username: 'alice', password: 'pw123456' })
+    const token = res.headers.get('set-cookie')!.match(/navi_session=([^;]+)/)![1]!
+    const [, payloadPart] = token.split('.')
+    const payload = JSON.parse(
+      Buffer.from(payloadPart!, 'base64url').toString('utf8'),
+    ) as { exp?: number }
+
+    expect(typeof payload.exp).toBe('number')
+    const sevenDays = 60 * 60 * 24 * 7
+    expect(payload.exp! - Math.floor(Date.now() / 1000)).toBeGreaterThan(sevenDays - 60)
+  })
+
   it('cookie 被篡改时 401', async () => {
     const res = await makeApp(store).request('/api/private', {
       headers: { cookie: `${SESSION_COOKIE}=not.a.real.token` },

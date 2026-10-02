@@ -33,7 +33,15 @@ function unavailable(c: Context, opts: AuthOptions): Response | null {
 }
 
 async function setSessionCookie(c: Context, user: User, secret: string): Promise<void> {
-  const token = await sign({ sub: user.id, username: user.username }, secret, ALG)
+  // exp 必须自己写进 payload：hono 的 verify 是
+  // `if (exp && payload.exp !== void 0)`——payload 里没有 exp 就**整段跳过**过期检查。
+  // 只设 cookie 的 maxAge 拦的是浏览器，不是服务端：token 一旦离开浏览器
+  // （代理日志、共享机房电脑），就能被无限期重放。
+  const expiresAt = Math.floor(Date.now() / 1000) + SESSION_MAX_AGE_SECONDS
+  const token = await sign(
+    { sub: user.id, username: user.username, exp: expiresAt },
+    secret, ALG,
+  )
   setCookie(c, SESSION_COOKIE, token, {
     httpOnly: true,
     sameSite: 'Lax',
