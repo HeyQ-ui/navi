@@ -23,6 +23,7 @@ function makeKnowledge(overrides: Partial<KnowledgeBundle> = {}): KnowledgeBundl
       eligibility: [],
     }],
     blocks: {},
+    boundaries: [],
   }
   return { ...base, ...overrides }
 }
@@ -123,7 +124,7 @@ describe('diagnose', () => {
 
   it('知识库为空时返回空结构而不是崩溃', () => {
     const empty: KnowledgeBundle = {
-      indicators: [], questions: [], archetypes: [], paths: [], blocks: {},
+      indicators: [], questions: [], archetypes: [], paths: [], blocks: {}, boundaries: [],
     }
     const result = diagnose(fullAnswers, empty)
     expect(result.paths).toEqual([])

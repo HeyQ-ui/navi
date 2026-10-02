@@ -58,7 +58,13 @@ export function buildKnowledge(rootDir = ROOT): KnowledgeBundle {
   // 按 id 排序，使顺序与目录命名无关。「同样输入必然同样输出」依赖于此
   paths.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
 
-  return { indicators, questions, archetypes, paths, blocks }
+  // 诚实边界清单（设计文档 §8.4）。复用与路径正文相同的解析路径
+  const boundariesPath = join(rootDir, 'boundaries.md')
+  const boundaries = existsSync(boundariesPath)
+    ? parseBlocks(parseFrontmatter(readFileSync(boundariesPath, 'utf8')).content)
+    : []
+
+  return { indicators, questions, archetypes, paths, blocks, boundaries }
 }
 
 function main(): void {

@@ -50,3 +50,21 @@ describe('buildKnowledge', () => {
     expect(bundle.archetypes).toEqual([])
   })
 })
+
+describe('buildKnowledge · 诚实边界', () => {
+  it('根目录没有 boundaries.md 时返回空数组', () => {
+    expect(buildKnowledge(makeTempRoot()).boundaries).toEqual([])
+  })
+
+  it('解析 boundaries.md 为内容块', () => {
+    const root = makeTempRoot()
+    writeFileSync(
+      join(root, 'boundaries.md'),
+      ':::boundary topic="转专业政策"\n我们无法给出可靠建议。\n:::\n',
+      'utf8',
+    )
+    const blocks = buildKnowledge(root).boundaries
+    expect(blocks).toHaveLength(1)
+    expect(blocks[0]!.raw).toContain('转专业政策')
+  })
+})

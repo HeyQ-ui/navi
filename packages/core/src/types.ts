@@ -125,6 +125,8 @@ export interface KnowledgeBundle {
   archetypes: ArchetypeDef[]
   paths: PathDef[]
   blocks: Record<string, Block[]>
+  /** 诚实边界清单（设计文档 §8.4）。文件缺失时为空数组 */
+  boundaries: Block[]
 }
 
 /** 问卷答案：题目 id → 选项索引（0–4） */
