@@ -179,15 +179,20 @@ export function createApp(bundle: KnowledgeBundle, options: AppOptions = {}): Ho
     return record.result.paths.some(p => p.id === id) ? id : null
   }
 
+  /** 前端渲染结果页需要的路径摘要（不含内容块，内容块由 /api/knowledge/:pathId 提供） */
+  function pathSummaries() {
+    return bundle.paths.map(p => ({
+      id: p.id, title: p.title, category: p.category,
+      span: p.span, status: p.status, summary: p.summary,
+    }))
+  }
+
   app.get('/api/questions', c => {
     const grade = parseGrade(c.req.query('grade'))
     return c.json({
       questions: scopeQuestions(bundle.questions, grade),
       indicators: bundle.indicators,
-      paths: bundle.paths.map(p => ({
-        id: p.id, title: p.title, category: p.category,
-        span: p.span, status: p.status, summary: p.summary,
-      })),
+      paths: pathSummaries(),
     })
   })
 
@@ -299,6 +304,47 @@ export function createApp(bundle: KnowledgeBundle, options: AppOptions = {}): Ho
       // 同 /api/interpret：只兜同步装配期错误，流中途失败由前端降级
       return c.json({ error: `追问暂不可用：${(error as Error).message}` }, 503)
     }
+  })
+
+  /** 历史列表：主推荐路径与匹配度由该条 result 快照推出，不另立算法（§9.3） */
+  app.get('/api/assessments', requireSession(auth), c => {
+    const rows = getStore().listAssessments(sessionUser(c).id)
+    const titles = new Map(bundle.paths.map(p => [p.id, p.title]))
+    return c.json({
+      assessments: rows.map(row => {
+        const main = findTiedPaths(row.result)[0]
+        return {
+          id: row.id,
+          source: row.source,
+          grade: row.grade,
+          createdAt: row.createdAt,
+          mainPathId: main?.id ?? null,
+          // 标题由服务端补，前端就不必为了显示中文名再取一次 /api/questions
+          mainPathTitle: main === undefined ? null : (titles.get(main.id) ?? main.id),
+          match: main === undefined ? null : Math.round(main.match),
+        }
+      }),
+    })
+  })
+
+  app.get('/api/assessments/:id', requireSession(auth), c => {
+    const record = getStore().findAssessment(c.req.param('id'), sessionUser(c).id)
+    if (record === null) return c.json({ error: '测评记录不存在' }, 404)
+
+    const tied = findTiedPaths(record.result)
+    return c.json({
+      id: record.id,
+      source: record.source,
+      grade: record.grade,
+      createdAt: record.createdAt,
+      answers: record.answers,
+      result: record.result,
+      interpretation: record.interpretation,
+      mainPathId: tied[0]?.id ?? null,
+      tiedPaths: tied.map(p => p.id),
+      // 自带宽渲染结果页所需的路径摘要，让历史详情只需一次请求
+      paths: pathSummaries(),
+    })
   })
 
   app.get('/api/knowledge/:pathId', c => {

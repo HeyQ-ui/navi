@@ -208,20 +208,24 @@ export function openStore(file: string): Store {
          WHERE user_id = ? ORDER BY created_at DESC, rowid DESC`,
       ).all(userId) as unknown as AssessmentListRow[]
 
-      // 坏行跳过而不是让整个列表 500：解析失败说明这行是手工改库或旧 schema 的产物，
-      // 它不该拖垮其余历史
+      // 坏行跳过而不是让整个列表 500（Review Focus #3）。两种「坏」都要挡：
+      // 一是 JSON 本身解析不了（手工改库），二是能解析但形状不对（旧 schema 残留、
+      // 少了 paths 字段）——后者 JSON.parse 不报错，却会让下游读 row.result.paths 时炸掉，
+      // 同样把整个列表打成 500。
       const out: AssessmentRow[] = []
       for (const row of rows) {
         try {
+          const parsed = JSON.parse(row.result) as DiagnosisResult
+          if (!Array.isArray(parsed?.paths)) throw new Error('result 缺少 paths 数组')
           out.push({
             id: row.id,
             source: row.source as Source,
             grade: row.grade,
-            result: JSON.parse(row.result) as DiagnosisResult,
+            result: parsed,
             createdAt: row.created_at,
           })
         } catch {
-          console.warn(`[store] 跳过损坏的测评记录：${row.id}`)
+          console.warn(`[store] 跳过无法使用的测评记录：${row.id}`)
         }
       }
       return out

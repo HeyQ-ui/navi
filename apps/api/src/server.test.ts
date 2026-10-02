@@ -68,24 +68,25 @@ function post(
  */
 async function authedApp(
   b: KnowledgeBundle = bundle,
-  options: { model?: LanguageModel; jwtSecret?: string; store?: Store } = {},
+  options: {
+    model?: LanguageModel
+    jwtSecret?: string
+    store?: Store
+    /** 在同一个 store 上建第二个用户时必须换名字——重名会让注册 409、拿不到 cookie */
+    username?: string
+  } = {},
 ) {
-  const store = options.store ?? openStore(':memory:')
-  const app = createApp(b, { jwtSecret: 'test-secret', ...options, store })
+  const { username = 'tester', store: injected, ...rest } = options
+  const store = injected ?? openStore(':memory:')
+  const app = createApp(b, { jwtSecret: 'test-secret', ...rest, store })
   const res = await app.request('/api/auth/register', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ username: 'tester', password: 'pw123456' }),
+    body: JSON.stringify({ username, password: 'pw123456' }),
   })
   const cookie = res.headers.get('set-cookie')!.split(';')[0]!
-  return { app, cookie, store }
-}
-
-/** 直接查库断言时用：测试里只注册过 tester 一个用户 */
-function meId(store: Store): string {
-  const user = store.verifyUser('tester', 'pw123456')
-  if (user === null) throw new Error('测试用户不存在')
-  return user.id
+  const userId = store.verifyUser(username, 'pw123456')!.id
+  return { app, cookie, store, userId }
 }
 
 /** 先做一次诊断，拿到它的 assessmentId——interpret / chat 现在都要它 */
@@ -164,22 +165,22 @@ describe('POST /api/diagnose', () => {
 
   it('落库并返回 assessmentId；同一用户重复测评累积两条记录', async () => {
     const store = openStore(':memory:')
-    const { app, cookie } = await authedApp(bundle, { store })
+    const { app, cookie, userId } = await authedApp(bundle, { store })
     const res = await post(app, '/api/diagnose', { answers: okAnswers }, cookie)
     const body = (await res.json()) as { assessmentId: string }
     expect(body.assessmentId).toBeTruthy()
 
     await post(app, '/api/diagnose', { answers: okAnswers }, cookie)
-    expect(store.listAssessments(meId(store))).toHaveLength(2)
+    expect(store.listAssessments(userId)).toHaveLength(2)
   })
 
   it('source 落库正确；缺省为 self，非法值 400', async () => {
     const store = openStore(':memory:')
-    const { app, cookie } = await authedApp(bundle, { store })
+    const { app, cookie, userId } = await authedApp(bundle, { store })
 
     await post(app, '/api/diagnose', { answers: okAnswers }, cookie)
     await post(app, '/api/diagnose', { answers: okAnswers, source: 'other' }, cookie)
-    expect(store.listAssessments(meId(store)).map(r => r.source).sort()).toEqual(['other', 'self'])
+    expect(store.listAssessments(userId).map(r => r.source).sort()).toEqual(['other', 'self'])
 
     const bad = await post(app, '/api/diagnose', { answers: okAnswers, source: 'nonsense' }, cookie)
     expect(bad.status).toBe(400)
@@ -345,7 +346,7 @@ describe('POST /api/interpret', () => {
 
   it('流正常结束后，解读全文写入该记录', async () => {
     const store = openStore(':memory:')
-    const { app, cookie } = await authedApp(bundle, {
+    const { app, cookie, userId } = await authedApp(bundle, {
       model: mockModel('你现在的位置是大一。'), store,
     })
     const assessmentId = await diagnoseOnce(app, cookie)
@@ -356,7 +357,7 @@ describe('POST /api/interpret', () => {
     await res.text() // 必须消费响应体，流才会真的走完
 
     await vi.waitFor(() => {
-      expect(store.findAssessment(assessmentId, meId(store))?.interpretation)
+      expect(store.findAssessment(assessmentId, userId)?.interpretation)
         .toBe('你现在的位置是大一。')
     })
   })
@@ -375,7 +376,7 @@ describe('POST /api/interpret', () => {
     })
 
     const store = openStore(':memory:')
-    const { app, cookie } = await authedApp(bundle, { model: brokenMidStream, store })
+    const { app, cookie, userId } = await authedApp(bundle, { model: brokenMidStream, store })
     const assessmentId = await diagnoseOnce(app, cookie)
 
     const res = await post(app, '/api/interpret',
@@ -384,7 +385,7 @@ describe('POST /api/interpret', () => {
 
     // 给异步写入足够的窗口：若实现是错的，这 100ms 里必然已经写进去了
     await new Promise(resolve => setTimeout(resolve, 100))
-    expect(store.findAssessment(assessmentId, meId(store))?.interpretation).toBeNull()
+    expect(store.findAssessment(assessmentId, userId)?.interpretation).toBeNull()
   })
 })
 
@@ -468,5 +469,101 @@ describe('POST /api/chat', () => {
       assessmentId, pathId: 'same-discipline-baoyan', messages: [],
     }, cookie)
     expect(res.status).toBe(400)
+  })
+})
+
+describe('GET /api/assessments（历史）', () => {
+  it('列出本人的历次测评，含主推荐路径、标题与匹配度', async () => {
+    const { app, cookie } = await authedApp()
+    await post(app, '/api/diagnose', { answers: okAnswers, grade: 'freshman', source: 'other' }, cookie)
+
+    const res = await app.request('/api/assessments', { headers: { cookie } })
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as {
+      assessments: Array<{
+        source: string; mainPathId: string; mainPathTitle: string
+        match: number; grade: string
+      }>
+    }
+    expect(body.assessments).toHaveLength(1)
+    expect(body.assessments[0]!.source).toBe('other')
+    expect(body.assessments[0]!.mainPathId).toBe('same-discipline-baoyan')
+    // 列表要显示中文路径名；服务端手里有 bundle，不必让前端再取一次 /api/questions
+    expect(body.assessments[0]!.mainPathTitle).toBe('本学科保研')
+    expect(body.assessments[0]!.grade).toBe('freshman')
+    expect(typeof body.assessments[0]!.match).toBe('number')
+  })
+
+  it('不带会话 cookie 返回 401', async () => {
+    const { app } = await authedApp()
+    expect((await app.request('/api/assessments')).status).toBe(401)
+  })
+
+  it('只看得到本人的记录', async () => {
+    const store = openStore(':memory:')
+    const alice = await authedApp(bundle, { store, username: 'alice' })
+    const bob = await authedApp(bundle, { store, username: 'bob' })
+    await post(alice.app, '/api/diagnose', { answers: okAnswers }, alice.cookie)
+
+    const res = await bob.app.request('/api/assessments', { headers: { cookie: bob.cookie } })
+    expect(((await res.json()) as { assessments: unknown[] }).assessments).toHaveLength(0)
+  })
+})
+
+describe('GET /api/assessments/:id（单条完整）', () => {
+  it('返回完整记录、路径摘要、主推荐路径与并列路径，以及可空的解读', async () => {
+    const { app, cookie } = await authedApp()
+    const assessmentId = await diagnoseOnce(app, cookie)
+
+    const res = await app.request(`/api/assessments/${assessmentId}`, { headers: { cookie } })
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as {
+      answers: Record<string, number>; interpretation: string | null
+      paths: Array<{ id: string }>; mainPathId: string; tiedPaths: string[]
+    }
+    expect(body.answers).toEqual(okAnswers)
+    expect(body.interpretation).toBeNull()
+    expect(body.paths[0]!.id).toBe('same-discipline-baoyan')
+    expect(body.mainPathId).toBe('same-discipline-baoyan')
+    expect(body.tiedPaths).toEqual(['same-discipline-baoyan'])
+  })
+
+  it('解读生成后能从这条接口取回', async () => {
+    const store = openStore(':memory:')
+    const { app, cookie } = await authedApp(bundle, { model: mockModel('解读全文'), store })
+    const assessmentId = await diagnoseOnce(app, cookie)
+    const streamed = await post(app, '/api/interpret',
+      { assessmentId, pathId: 'same-discipline-baoyan' }, cookie)
+    await streamed.text()
+
+    await vi.waitFor(async () => {
+      const res = await app.request(`/api/assessments/${assessmentId}`, { headers: { cookie } })
+      const body = (await res.json()) as { interpretation: string | null }
+      expect(body.interpretation).toBe('解读全文')
+    })
+  })
+
+  it('他人的 id 与不存在的 id 都返回 404', async () => {
+    const store = openStore(':memory:')
+    const alice = await authedApp(bundle, { store, username: 'alice' })
+    const bob = await authedApp(bundle, { store, username: 'bob' })
+    const id = await diagnoseOnce(alice.app, alice.cookie)
+
+    expect((await bob.app.request(
+      `/api/assessments/${id}`, { headers: { cookie: bob.cookie } })).status).toBe(404)
+    expect((await bob.app.request(
+      '/api/assessments/nope', { headers: { cookie: bob.cookie } })).status).toBe(404)
+  })
+
+  it('库里某行 result 形状不对时列表跳过坏行，其余照常返回（不 500）', async () => {
+    const { app, cookie, store, userId } = await authedApp()
+    const good = await diagnoseOnce(app, cookie)
+    // 合法 JSON 但没有 paths：旧 schema 残留的真实形态，JSON.parse 拦不住它
+    store.createAssessment({ userId, source: 'self', grade: null, answers: {}, result: {} as never })
+
+    const res = await app.request('/api/assessments', { headers: { cookie } })
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as { assessments: Array<{ id: string }> }
+    expect(body.assessments.map(a => a.id)).toEqual([good])
   })
 })
