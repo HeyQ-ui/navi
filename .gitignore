@@ -3,6 +3,9 @@
 .env.*
 !.env.example
 
+# ── 本地数据：含用户名与密码哈希，绝不能提交 ──
+apps/api/data/
+
 # ── 依赖 ──
 node_modules/
 .pnpm-store/
