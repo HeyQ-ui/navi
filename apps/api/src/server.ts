@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import type { Context } from 'hono'
-import { FIVE_POINT_SCALE, diagnose, findCloseMatches } from '@navi/core'
+import { FIVE_POINT_SCALE, diagnose, findTiedPaths } from '@navi/core'
 import type { Answers, KnowledgeBundle, Question } from '@navi/core'
 import { streamChat, streamInterpret } from '@navi/llm'
 import type { LanguageModel, ModelMessage } from 'ai'
@@ -142,7 +142,7 @@ export function createApp(bundle: KnowledgeBundle, options: AppOptions = {}): Ho
 
     return c.json({
       ...result,
-      closeMatches: findCloseMatches(result).map(p => p.id),
+      tiedPaths: findTiedPaths(result).map(p => p.id),
     })
   })
 

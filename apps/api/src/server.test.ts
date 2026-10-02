@@ -190,15 +190,15 @@ describe('答案完整性与接近路径（设计文档 §5.5、§10）', () => 
     expect(body.error).toContain('q2')
   })
 
-  it('响应中给出分数接近的路径 id 列表', async () => {
+  it('响应中给出与主推荐路径显示分相同的路径 id 列表', async () => {
     const res = await createApp(bundle).request('/api/diagnose', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ answers: { q1: 4, q2: 4, q3: 4 } }),
     })
     expect(res.status).toBe(200)
-    const body = (await res.json()) as { closeMatches: string[] }
-    expect(body.closeMatches).toEqual(['same-discipline-baoyan'])
+    const body = (await res.json()) as { tiedPaths: string[] }
+    expect(body.tiedPaths).toEqual(['same-discipline-baoyan'])
   })
 })
 
