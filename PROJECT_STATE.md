@@ -81,7 +81,7 @@ apps/web            ←  React SPA，只消费 HTTP 接口
 
 ```bash
 pnpm install
-pnpm test        # 153 个测试，全绿
+pnpm test        # 154 个测试，全绿
 pnpm -r build    # tsc --noEmit + vite build，通过
 pnpm -r lint     # 通过
 ```
@@ -94,7 +94,7 @@ pnpm -r lint     # 通过
 | `packages/core` | 61 | 六个算法模块 + 黄金案例集 |
 | `packages/llm` | 17 | SDK 冒烟 / 上下文组装 / 模型编排 / 降级 |
 | `apps/api` | 28 | 五个端点 + 年级分流 + 完整性校验 + LLM 降级 + 追问上限 |
-| `apps/web` | 26 | 问卷 + 结果页 + 本路径选择 + 解读与追问 |
+| `apps/web` | 27 | 问卷 + 结果页 + 本路径选择 + 解读与追问（含真实 hook 的流协议接缝） |
 
 ### 端到端验证结果（已实测）
 
@@ -260,10 +260,11 @@ match(path)                  = Σ(match_i × W'[i])
 
 ### 8.5 Vercel AI SDK v7 与网上示例（多为 v5）的断裂点
 
-这三处已在代码里处理，但下次动 SDK 时容易踩：
+这几处已在代码里处理，但下次动 SDK 时容易踩：
 
 - `messages` 里**不能**出现 `system` 角色，否则抛 `AI_InvalidPromptError`；系统提示要走 `instructions` 选项
 - `useChat` **不接受** `api` 选项，改为 `useChat({ transport: new DefaultChatTransport({ api, body }) })`
+- `useCompletion` 的 `streamProtocol` **默认为 `"data"`**（UI message 事件流），而 `/api/interpret` 用 `toTextStreamResponse()` 返回纯文本。不显式传 `streamProtocol: 'text'` 时，纯文本被当作事件流解析：解析不出分片、不抛错、`completion` 恒为空串，症状是「生成结束后解读区变空白」。**响应格式与 `streamProtocol` 必须成对**：`toTextStreamResponse()` ↔ `'text'`，`toUIMessageStreamResponse()` ↔ `'data'`
 - `ai/test` 导出的是 `MockLanguageModelV3` / `MockLanguageModelV4`（**没有 V2**）；mock 的 `finish` 分片里 `finishReason` 是 `{ unified, raw }`、`usage` 是嵌套对象，不是裸值
 
 `packages/llm/src/sdk-smoke.test.ts` 是这一切的基准，改 SDK 版本后先跑它。
@@ -316,3 +317,13 @@ pnpm --filter @navi/web dev                   # 前端 :5173（已配置 /api �
 ```
 
 **启用真实模型**：把 `.env.example` 复制为 `.env`，填 `DEEPSEEK_API_KEY`（`DEEPSEEK_BASE_URL` 与 `DEEPSEEK_MODEL` 可选，默认指向 `https://api.deepseek.com/v1` 的 `deepseek-chat`）。`.env` 只在 `apps/api/src/index.ts` 读，已被 `.gitignore` 忽略。**不填也能跑**——解读与追开会降级为「暂不可用」，其余结果完整。
+
+**两个调试陷阱（都表现为「配好 Key 仍显示暂不可用」）：**
+
+1. `.env` 只在 API 进程启动时读一次，没有 watcher 盯着它。改完 `.env` 必须重启 API。
+2. 陈旧的 dev 进程会占住 `:3000`。此时新的 `pnpm dev` 起不来却不显眼（vite 自动退到 5174，浏览器仍连着旧的 5173），页面继续由那个**启动早于 `.env` 写入**的旧 API 应答——症状与完全没配 Key 一模一样。先确认端口归属，再排查别的：
+
+```bash
+netstat -ano | grep LISTENING | grep -E ":(3000|5173) "   # 记下 PID
+powershell.exe -NoProfile -Command "Get-CimInstance Win32_Process -Filter \"Name='node.exe'\" | Select-Object ProcessId,CreationDate,CommandLine | Format-List"
+```
