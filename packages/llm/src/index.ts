@@ -26,11 +26,13 @@ export function createDeepSeekModel(env: NodeJS.ProcessEnv = process.env): Langu
   const apiKey = env.DEEPSEEK_API_KEY
   if (!apiKey) throw new Error('未配置 DEEPSEEK_API_KEY')
 
+  // 用 || 而非 ??：.env.example 里这两项是留空的，loadEnvFile 会把它们设成空串，
+  // ?? 只挡 null/undefined，空串会穿透——baseURL 为空会让 createOpenAI 直接抛错
   const provider = createOpenAI({
     apiKey,
-    baseURL: env.DEEPSEEK_BASE_URL ?? 'https://api.deepseek.com/v1',
+    baseURL: env.DEEPSEEK_BASE_URL || 'https://api.deepseek.com/v1',
   })
-  return provider.chat(env.DEEPSEEK_MODEL ?? 'deepseek-chat')
+  return provider.chat(env.DEEPSEEK_MODEL || 'deepseek-chat')
 }
 
 /** 服务端自己重算诊断，不接受客户端传来的结果（§5.1 确定性） */

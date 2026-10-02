@@ -6,3 +6,9 @@ packages:
 # esbuild 是 vitest 的底层依赖，需允许其完成平台二进制的链接。
 allowBuilds:
   esbuild: true
+
+minimumReleaseAgeExclude:
+  - '@ai-sdk/gateway@4.0.103'
+  - ai@7.0.127
+  - '@ai-sdk/mcp@2.0.66'
+  - '@ai-sdk/react@4.0.130'

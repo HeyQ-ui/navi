@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { simulateReadableStream } from 'ai'
 import { MockLanguageModelV3 } from 'ai/test'
-import { streamInterpret, streamChat } from './index.js'
+import { streamInterpret, streamChat, createDeepSeekModel } from './index.js'
 import type { Answers, KnowledgeBundle } from '@navi/core'
 
 const bundle: KnowledgeBundle = {
@@ -90,6 +90,24 @@ describe('streamChat', () => {
   })
 })
 
+describe('createDeepSeekModel', () => {
+  it('未配置 API Key 时抛错', () => {
+    expect(() => createDeepSeekModel({})).toThrow()
+  })
+
+  it('空字符串的 baseURL 与 model 回落到默认值', () => {
+    // .env.example 里这两项是留空的，loadEnvFile 会把它们设成空串。
+    // 若用 ?? 兜底，空串会穿透，baseURL 与 modelId 双双变成空字符串。
+    const model = createDeepSeekModel({
+      DEEPSEEK_API_KEY: 'k',
+      DEEPSEEK_BASE_URL: '',
+      DEEPSEEK_MODEL: '',
+    })
+    // LanguageModel 是联合类型（含字符串形式的模型 id），这里断言的是 provider.chat 收到过什么
+    expect((model as { modelId: string }).modelId).toBe('deepseek-chat')
+  })
+})
+
 describe('降级', () => {
   it('模型调用失败时抛出可捕获的错误，不吞掉', async () => {
     const broken = new MockLanguageModelV3({
@@ -103,5 +121,30 @@ describe('降级', () => {
       // .text 触发实际调用；失败必须能冒泡到调用方，由 API 层转成降级响应
       ).text,
     ).rejects.toThrow()
+  })
+
+  it('【已知缺陷】流中途出错时 text 静默返回已累积的部分文本', async () => {
+    // 这不是期望行为，是把当前行为钉住：超时/欠费发生在首 token 之后时，
+    // .text 会 resolve 出半截文本，错误既不抛给调用方，也不进纯文本流，
+    // 客户端因此拿不到任何降级信号。详见 PROJECT_STATE §8.6。
+    // 将来把 /api/interpret 换成 UI 消息流（错误会进流）时，这条会主动变红，
+    // 提醒改的人连同断言一起更新。
+    const brokenMidStream = new MockLanguageModelV3({
+      doStream: async () => ({
+        stream: simulateReadableStream({
+          chunks: [
+            { type: 'text-start', id: '1' },
+            { type: 'text-delta', id: '1', delta: '前半句' },
+            { type: 'error', error: new Error('模型中途断开') },
+          ],
+        }),
+      }) as never,
+    })
+
+    const result = streamInterpret(
+      { answers, grade: 'freshman', pathId: 'same-discipline-baoyan', bundle },
+      { model: brokenMidStream },
+    )
+    expect(await result.text).toBe('前半句')
   })
 })

@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import type { Context } from 'hono'
-import { diagnose, findCloseMatches } from '@navi/core'
+import { FIVE_POINT_SCALE, diagnose, findCloseMatches } from '@navi/core'
 import type { Answers, KnowledgeBundle, Question } from '@navi/core'
 import { streamChat, streamInterpret } from '@navi/llm'
 import type { LanguageModel, ModelMessage } from 'ai'
@@ -50,34 +50,61 @@ function scopeQuestions(questions: Question[], grade: Grade | undefined): Questi
   return questions.filter(q => !q.grades || q.grades.length === 0 || q.grades.includes(grade))
 }
 
+type AnswersValidation =
+  | { ok: true; answers: Answers; grade: Grade | undefined; scopedQuestions: Question[] }
+  | { ok: false; error: string }
+
+/**
+ * 三个端点共用的 answers 校验（设计文档 §5.5）。
+ *
+ * 三层检查，缺一不可：
+ * 1. 本次问卷的题目必须全答（部分作答会让 known 语义失真）
+ * 2. 不得夹带知识库里根本不存在的题目 id（题目改 id 后的旧客户端、被篡改的 body）
+ * 3. 取值必须是 0–4 的整数（越界值会被当成未作答，静默产出一份失真的画像）
+ *
+ * 注意：**属于其他年级的题目 id 是允许的**，会在 `scopeQuestions` 处被过滤掉。
+ * 这是刻意的容忍（`server.test.ts` 的「年级分流」用例固定了它），前端把
+ * localStorage 里的历史答案一并提交时会用到。
+ */
+function validateAnswers(bundle: KnowledgeBundle, body: unknown): AnswersValidation {
+  const answers = (body as { answers?: unknown } | null)?.answers
+  if (answers === null || typeof answers !== 'object' || Array.isArray(answers)) {
+    return { ok: false, error: '缺少 answers 字段，或格式不是对象' }
+  }
+
+  const grade = parseGrade((body as { grade?: unknown }).grade)
+  const scopedQuestions = scopeQuestions(bundle.questions, grade)
+  const record = answers as Record<string, unknown>
+
+  const missing = scopedQuestions.filter(q => !(q.id in record)).map(q => q.id)
+  if (missing.length > 0) {
+    return { ok: false, error: `以下题目未作答：${missing.join(', ')}` }
+  }
+
+  const knownIds = new Set(bundle.questions.map(q => q.id))
+  const unknown = Object.keys(record).filter(id => !knownIds.has(id))
+  if (unknown.length > 0) {
+    return { ok: false, error: `以下题目 id 不存在：${unknown.join(', ')}` }
+  }
+
+  const outOfRange = Object.entries(record)
+    .filter(([, value]) =>
+      !Number.isInteger(value) || (value as number) < 0 || (value as number) >= FIVE_POINT_SCALE.length)
+    .map(([id]) => id)
+  if (outOfRange.length > 0) {
+    return {
+      ok: false,
+      error: `以下题目的取值不是 0–${FIVE_POINT_SCALE.length - 1} 的整数：${outOfRange.join(', ')}`,
+    }
+  }
+
+  return { ok: true, answers: record as Answers, grade, scopedQuestions }
+}
+
 export function createApp(bundle: KnowledgeBundle, options: AppOptions = {}): Hono {
   const app = new Hono()
 
-  /**
-   * 两个 LLM 端点共用的入参校验：答案须覆盖全部适用题目。
-   * 通过时返回解析结果；失败时返回一个 Response，调用方直接 `return` 它。
-   */
-  function validate(c: Context, body: unknown):
-    | { answers: Answers; grade: Grade | undefined; scopedQuestions: Question[] }
-    | Response {
-    const answers = (body as { answers?: unknown } | null)?.answers
-    if (answers === null || typeof answers !== 'object' || Array.isArray(answers)) {
-      return c.json({ error: '缺少 answers 字段，或格式不是对象' }, 400)
-    }
-
-    const grade = parseGrade((body as { grade?: unknown }).grade)
-    const scopedQuestions = scopeQuestions(bundle.questions, grade)
-
-    const answerIds = new Set(Object.keys(answers as Record<string, unknown>))
-    const missing = scopedQuestions.filter(q => !answerIds.has(q.id)).map(q => q.id)
-    if (missing.length > 0) {
-      return c.json({ error: `以下题目未作答：${missing.join(', ')}` }, 400)
-    }
-
-    return { answers: answers as Answers, grade, scopedQuestions }
-  }
-
-  /** 两端点共用的请求体解析 */
+  /** 各端点共用的请求体解析 */
   async function readBody(c: Context): Promise<unknown | Response> {
     try {
       return await c.req.json()
@@ -99,30 +126,14 @@ export function createApp(bundle: KnowledgeBundle, options: AppOptions = {}): Ho
   })
 
   app.post('/api/diagnose', async c => {
-    let body: unknown
-    try {
-      body = await c.req.json()
-    } catch {
-      return c.json({ error: '请求体不是合法 JSON' }, 400)
-    }
+    const body = await readBody(c)
+    if (body instanceof Response) return body
 
-    const answers = (body as { answers?: unknown } | null)?.answers
-    if (answers === null || typeof answers !== 'object' || Array.isArray(answers)) {
-      return c.json({ error: '缺少 answers 字段，或格式不是对象' }, 400)
-    }
+    const v = validateAnswers(bundle, body)
+    if (!v.ok) return c.json({ error: v.error }, 400)
 
-    const grade = parseGrade((body as { grade?: unknown }).grade)
-    const scopedQuestions = scopeQuestions(bundle.questions, grade)
-
-    // 全部题目必答（设计文档 §5.5）：部分作答会让 known 语义失真
-    const answerIds = new Set(Object.keys(answers as Record<string, unknown>))
-    const missing = scopedQuestions.filter(q => !answerIds.has(q.id)).map(q => q.id)
-    if (missing.length > 0) {
-      return c.json({ error: `以下题目未作答：${missing.join(', ')}` }, 400)
-    }
-
-    const scoped: KnowledgeBundle = { ...bundle, questions: scopedQuestions }
-    const result = diagnose(answers as Answers, scoped)
+    const scoped: KnowledgeBundle = { ...bundle, questions: v.scopedQuestions }
+    const result = diagnose(v.answers, scoped)
 
     return c.json({
       ...result,
@@ -134,8 +145,8 @@ export function createApp(bundle: KnowledgeBundle, options: AppOptions = {}): Ho
     const body = await readBody(c)
     if (body instanceof Response) return body
 
-    const parsed = validate(c, body)
-    if (parsed instanceof Response) return parsed
+    const v = validateAnswers(bundle, body)
+    if (!v.ok) return c.json({ error: v.error }, 400)
 
     const pathId = findPathId(body, bundle)
     if (pathId === null) {
@@ -149,18 +160,15 @@ export function createApp(bundle: KnowledgeBundle, options: AppOptions = {}): Ho
       return c.json({ error: '个性化解读暂不可用：服务端未配置模型' }, 503)
     }
 
-    const scoped: KnowledgeBundle = { ...bundle, questions: parsed.scopedQuestions }
+    const scoped: KnowledgeBundle = { ...bundle, questions: v.scopedQuestions }
     try {
       return streamInterpret(
-        {
-          answers: parsed.answers,
-          grade: parsed.grade ?? 'freshman',
-          pathId,
-          bundle: scoped,
-        },
+        { answers: v.answers, grade: v.grade ?? 'freshman', pathId, bundle: scoped },
         options,
       ).toTextStreamResponse()
     } catch (error) {
+      // 只兜得住同步的装配期错误（读提示词失败等）。超时/欠费发生在流被消费之后，
+      // 那时 200 已经发出，由前端把流错误显示成「暂不可用」。
       return c.json({ error: `个性化解读暂不可用：${(error as Error).message}` }, 503)
     }
   })
@@ -169,8 +177,8 @@ export function createApp(bundle: KnowledgeBundle, options: AppOptions = {}): Ho
     const body = await readBody(c)
     if (body instanceof Response) return body
 
-    const parsed = validate(c, body)
-    if (parsed instanceof Response) return parsed
+    const v = validateAnswers(bundle, body)
+    if (!v.ok) return c.json({ error: v.error }, 400)
 
     const pathId = findPathId(body, bundle)
     if (pathId === null) {
@@ -187,19 +195,14 @@ export function createApp(bundle: KnowledgeBundle, options: AppOptions = {}): Ho
       return c.json({ error: '追问暂不可用：服务端未配置模型' }, 503)
     }
 
-    const scoped: KnowledgeBundle = { ...bundle, questions: parsed.scopedQuestions }
+    const scoped: KnowledgeBundle = { ...bundle, questions: v.scopedQuestions }
     try {
       return streamChat(
-        {
-          answers: parsed.answers,
-          grade: parsed.grade ?? 'freshman',
-          pathId,
-          messages,
-          bundle: scoped,
-        },
+        { answers: v.answers, grade: v.grade ?? 'freshman', pathId, messages, bundle: scoped },
         options,
       ).toUIMessageStreamResponse()
     } catch (error) {
+      // 同 /api/interpret：只兜同步装配期错误，流中途失败由前端降级
       return c.json({ error: `追问暂不可用：${(error as Error).message}` }, 503)
     }
   })

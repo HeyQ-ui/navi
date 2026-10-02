@@ -212,6 +212,38 @@ function post(app: ReturnType<typeof createApp>, path: string, body: unknown) {
   })
 }
 
+describe('answers 校验（Review Focus #2：不可信输入挡在模型之外）', () => {
+  it('/api/interpret 拒绝夹带的不存在题目 id', async () => {
+    const app = createApp(bundle, { model: mockModel('不该出现') })
+    const res = await post(app, '/api/interpret', {
+      answers: { ...okAnswers, ghost: 3 }, grade: 'freshman', pathId: 'same-discipline-baoyan',
+    })
+    expect(res.status).toBe(400)
+  })
+
+  it('/api/interpret 拒绝越界的取值', async () => {
+    const app = createApp(bundle, { model: mockModel('不该出现') })
+    const res = await post(app, '/api/interpret', {
+      answers: { ...okAnswers, q1: 9 }, grade: 'freshman', pathId: 'same-discipline-baoyan',
+    })
+    expect(res.status).toBe(400)
+  })
+
+  it('/api/diagnose 也拒绝夹带的不存在题目 id', async () => {
+    const res = await post(createApp(bundle), '/api/diagnose', {
+      answers: { ...okAnswers, ghost: 3 }, grade: 'freshman',
+    })
+    expect(res.status).toBe(400)
+  })
+
+  it('/api/diagnose 也拒绝越界的取值', async () => {
+    const res = await post(createApp(bundle), '/api/diagnose', {
+      answers: { ...okAnswers, q1: -1 }, grade: 'freshman',
+    })
+    expect(res.status).toBe(400)
+  })
+})
+
 describe('POST /api/interpret', () => {
   it('返回流式解读文本', async () => {
     const app = createApp(bundle, { model: mockModel('你现在的位置是大一。') })
