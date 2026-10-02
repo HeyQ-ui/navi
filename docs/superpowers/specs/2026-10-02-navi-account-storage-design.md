@@ -20,15 +20,17 @@
 | 1 | 用户注册与登录（用户名 + 密码） | 本文件新立 |
 | 2 | 会话（httpOnly cookie 中的 JWT） | 本文件新立 |
 | 3 | 测评记录落库，满足四条留存约束 | §4.2 |
-| 4 | 只读历史列表界面 | 本文件新立 |
-| 5 | 「测测自己 / 测测别人」入口 | §9.1（已写明，尚未实现） |
+| 4 | **个性化解读随测评记录持久化**（§4.7） | 本文件新立，是对 §4.2 的扩展 |
+| 5 | 只读历史列表界面 | 本文件新立 |
+| 6 | 「测测自己 / 测测别人」入口 | §9.1（已写明，尚未实现） |
 
 ### 1.2 明确不做
 
 - 密码找回、邮箱验证、第三方登录
 - 登出全部设备、会话主动吊销
 - 历史记录的删除 / 编辑
-- 追问对话历史的持久化（§4.2 未要求）
+- **追问对话历史的持久化**（§4.2 未要求；解读已持久化，追问仍是每次实时问答）
+- 解读的「重新生成」按钮（存了就不重算；为空时自动补生成一次，见 §4.7）
 - 把测评历史喂进 agent 上下文（见 §7，这是不变量而非功能）
 
 ---
@@ -68,7 +70,7 @@ apps/api/data/navi.db   数据文件（目录由 store 在启动时创建）
 
 ## 3. 数据模型
 
-两张表，覆盖 §4.2 表格的全部四行。
+两张表，覆盖 §4.2 表格的四行，外加一张持久化解读所需的列（对应关系见 §3.1）。
 
 ```sql
 CREATE TABLE IF NOT EXISTS users (
@@ -80,13 +82,14 @@ CREATE TABLE IF NOT EXISTS users (
 );
 
 CREATE TABLE IF NOT EXISTS assessments (
-  id         TEXT PRIMARY KEY,         -- crypto.randomUUID()
-  user_id    TEXT NOT NULL REFERENCES users(id),
-  source     TEXT NOT NULL CHECK (source IN ('self','other')),  -- §4.2 第 1、4 条
-  grade      TEXT,                     -- 测评时选的年级
-  answers    TEXT NOT NULL,            -- JSON: QuestionId -> 0..4   §4.2「完整作答」
-  result     TEXT NOT NULL,            -- JSON: 完整 DiagnosisResult  §4.2 其余三行
-  created_at TEXT NOT NULL
+  id             TEXT PRIMARY KEY,     -- crypto.randomUUID()
+  user_id        TEXT NOT NULL REFERENCES users(id),
+  source         TEXT NOT NULL CHECK (source IN ('self','other')),  -- §4.2 第 1、4 条
+  grade          TEXT,                 -- 测评时选的年级
+  answers        TEXT NOT NULL,        -- JSON: QuestionId -> 0..4   §4.2「完整作答」
+  result         TEXT NOT NULL,        -- JSON: 完整 DiagnosisResult  §4.2 其余三行
+  interpretation TEXT,                 -- 个性化解读全文，生成成功后补写一次；未生成为 NULL（§4.7）
+  created_at     TEXT NOT NULL
 );
 
 CREATE INDEX IF NOT EXISTS idx_assessments_user
@@ -101,8 +104,13 @@ CREATE INDEX IF NOT EXISTS idx_assessments_user
 | 匹配度与推荐结果（完整 `DiagnosisResult`） | `result` |
 | 作答一致性（每指标一份） | `result.indicators[*].consistency` |
 | 置信度（每条路径一份） | `result.paths[*].confidence` |
+| **个性化解读**（本文件扩展，§4.2 原文未列） | `interpretation` |
 
-### 3.2 三处刻意的取舍
+解读挂在**该条记录的主推荐路径**上，与结果页的口径一致（§9.3）。主推荐路径可由
+`result` 快照用 `findTiedPaths` 推出，所以不另存 `interpretation_path_id`——快照是
+不可变的，推导结果不会变。
+
+### 3.2 四处刻意的取舍
 
 **`result` 存快照，不只存 `answers` 重算。** core 是确定性的，`answers` 足够重算——
 但快照保证「用户当时看到的」不随算法或知识库改动而变，且 §4.2 明写要留存匹配度与
@@ -117,6 +125,11 @@ CREATE INDEX IF NOT EXISTS idx_assessments_user
 这样 `Alice` 与 `alice` 天然是同一人（§6），无需第二个 `username_key` 列去做唯一性，
 也不会出现「唯一键与显示名不一致」这类只有排查时才发现的错位。代价是丢了用户输入的
 原始大小写。若将来要还原显示形式，再加一列 `display_name`，不影响已有数据。
+
+**解读用可空列，不建独立表。** 解读在记录创建时还不存在（它是结果页挂载后才生成的），
+所以只能是「先建行、后补字段」。独立表能换来的好处是「同一条记录可存多份解读」——
+而存了就重算是不做的（§1.2），这个好处落不到地。代价见 §4.4：记录行因此不是绝对
+只写一次的。
 
 ### 3.3 数据文件的位置与保护
 
@@ -145,7 +158,7 @@ new URL('../data/navi.db', import.meta.url)   // → apps/api/data/navi.db
 | `POST` | `/api/auth/logout` | — | `204`，清 cookie |
 | `GET` | `/api/auth/me` | — | `200 {id, username}` / `401` |
 | `GET` | `/api/assessments` | — | `200 {assessments: [...]}` 倒序 / `401` |
-| `GET` | `/api/assessments/:id` | — | `200 {..., answers, result, paths, tiedPaths}` / `401` / `404` |
+| `GET` | `/api/assessments/:id` | — | `200 {id, source, grade, createdAt, answers, result, interpretation, mainPathId, tiedPaths, paths}` / `401` / `404` |
 
 失败码：
 
@@ -153,7 +166,7 @@ new URL('../data/navi.db', import.meta.url)   // → apps/api/data/navi.db
 - `401` 登录失败；未登录访问受保护端点
 - `404` 记录不存在**或不属于本人**——两种情况合并成 404，不泄露他人记录的存在性
 - `409` 注册时用户名已被占用
-- `503` 未配置 `JWT_SECRET`（见 §4.4）
+- `503` 未配置 `JWT_SECRET`（见 §4.5）
 
 `GET /api/assessments` 的每条列表项：
 
@@ -166,9 +179,32 @@ new URL('../data/navi.db', import.meta.url)   // → apps/api/data/navi.db
 ——那是详情响应的事。
 
 `GET /api/assessments/:id` 自带宽渲染结果页所需的 `paths` 摘要（与 `/api/questions`
-下发的同形），使历史详情成为**一次**请求，不依赖第二次往返。
+下发的同形），使历史详情成为**一次**请求，不依赖第二次往返。它同时返回
+`interpretation`（可为 `null`，见 §4.7）与 `mainPathId`。
 
-### 4.2 受限与公开的界线
+### 4.2 现有三个端点的改动
+
+解读要写回「哪一条记录」，所以这三个端点的入参从「客户端提交答案」改为
+「指向一条已落库的记录」。
+
+| 端点 | 现在 | 改为 |
+|---|---|---|
+| `POST /api/diagnose` | 入 `{answers, grade}`；返回诊断结果 | 入参不变，**返回体多一个 `assessmentId`** |
+| `POST /api/interpret` | 入 `{answers, grade, pathId}` | 入 **`{assessmentId, pathId}`** |
+| `POST /api/chat` | 入 `{answers, grade, pathId, messages}` | 入 **`{assessmentId, pathId, messages}`** |
+
+**为什么不再传 `answers`：** 有了 `assessmentId`，服务端就能从**自己的库**里读出
+该记录的 `answers` 与 `result`。这比让客户端每次重申答案更可信——记录是服务端写的，
+客户端改不了它，而请求体谁都能改。于是 `validateAnswers` 从这两个端点上摘掉，
+换成「按 id 取记录 → 校验归属 → 用记录里的数据」。`/api/diagnose` 保留
+`validateAnswers`，它仍是客户端首次提交答案的入口。
+
+`pathId` 仍需校验：它必须是该记录 `result` 里真实存在的路径。
+
+`assessmentId` 不存在或不属于当前用户 → `404`（与 `GET /api/assessments/:id` 同口径，
+不泄露他人记录的存在性）。
+
+### 4.3 受限与公开的界线
 
 | 端点 | 会话 |
 |---|---|
@@ -185,16 +221,21 @@ new URL('../data/navi.db', import.meta.url)   // → apps/api/data/navi.db
 分享链接也不受影响：分享的是 URL 快照，观看者无需登录即可看结果；但只要他点「解读」
 或「追问」，就会被要求登录。这是登录门槛的必然结果，已确认接受。
 
-### 4.3 落库时机
+### 4.4 落库时机
 
 落库在 `POST /api/diagnose` **服务端内部**：一次请求，服务端手里已经有 `answers`
 和刚算出的 `result`，追加一行即可。不让客户端另发一次保存请求——那样既要多一次往返，
 又要把「存什么」交给不可信的客户端。
 
-追加语义（§4.2 第 2 条）由此天然成立：这个端点只 `INSERT`，从不 `UPDATE` 已有行。
-同一用户重复提交同一份答案会得到两条独立记录，这正是「历史不丢」要的行为。
+追加语义（§4.2 第 2 条）由此成立：同一用户重复提交同一份答案会得到两条独立记录，
+这正是「历史不丢」要的行为。
 
-### 4.4 `JWT_SECRET` 缺失时 fail closed
+**§4.2 第 2 条说的「不覆盖」指的是测评记录不互相覆盖，不是「行永远不被写第二次」。**
+记录行落库时 `interpretation` 为 `NULL`，在解读生成成功后被补写一次（§4.7）。这是
+该行**唯一**一次更新，且只写这一个字段；`answers`、`result`、`source`、`created_at`
+一经写入永不改变。这个区分要写进代码注释——否则后来者会把「补写解读」当成违规。
+
+### 4.5 `JWT_SECRET` 缺失时 fail closed
 
 沿用本仓库已有的降级写法（`/api/interpret`、`/api/chat` 在未配置模型时返回 503），
 认证端点在未配置 `JWT_SECRET` 时返回 `503 {error: '账号功能暂不可用：服务端未配置会话密钥'}`，
@@ -211,7 +252,7 @@ new URL('../data/navi.db', import.meta.url)   // → apps/api/data/navi.db
 JWT_SECRET=
 ```
 
-### 4.5 cookie 与会话
+### 4.6 cookie 与会话
 
 - 名字 `navi_session`，JWT payload `{ sub: userId, username }`，有效期 7 天
 - `HttpOnly`（前端 JS 读不到，杜绝 XSS 窃取）、`SameSite=Lax`、`Path=/`
@@ -221,6 +262,53 @@ JWT_SECRET=
 `SameSite=Lax` + vite proxy 就够：前端用相对路径 `/api/...`，vite 已代理到 `:3000`，
 浏览器看到的是**同源**，cookie 自动带上——不需要 CORS，也不需要改 `credentials`。
 生产同源部署同理。
+
+### 4.7 解读的生成与保存
+
+**生成时机不变**：`PathAssistant` 挂载时自动调一次 `/api/interpret`
+（`apps/web/src/components/PathAssistant.tsx` 现有行为），用户不需要点任何按钮。
+所以「每个测试做完之后」≈「结果页出现时」，保存挂在这次生成上，不增加模型调用次数。
+
+**只保存完整的。** 半截流出错时写入会留下一段残缺的解读，而它会被当成「已生成」而
+再也不重算——这是最坏的组合。所以只在流**正常结束**后写：
+
+- 由 `apps/api` 持有流结果对象，在流结束时拿到全文再写库
+- 不把存储带进 `packages/llm`——`streamInterpret` / `streamChat` 保持不认识存储。
+  由路由层用流结果自带的了结回调（`onFinish`）或全文 promise 来落库
+- 写入失败只记日志、不影响已经发给用户的响应（响应已开始流出）
+
+> **实现前先证实一件事**：`toTextStreamResponse()` 被消费后，流结果对象上的全文
+> promise 是否照常 resolve。AI SDK 版本差异可能让「消费响应体」与「拿全文」互斥；
+> 若互斥，改用 `onFinish` 回调把全文交出来。这是本设计里唯一一处需要实测确认的机制。
+
+**读取**：`GET /api/assessments/:id` 返回 `interpretation`。
+
+- 非 `null` → 历史详情直接渲染这段文字，**不调 `/api/interpret`**，不重算
+- `null`（模型当时不可用、或用户没等生成完就离开）→ 照常生成一次并补写，行为与
+  首次一致
+
+**agent 上下文用落库的 `result` 快照，不重算。** 配套改动：`packages/llm` 的
+`streamInterpret` / `streamChat` 接受一个可选的预置 `result`，`sliceOf` 用它替代
+内部的 `diagnose(answers, bundle)`。
+
+理由是防止**显示与解释不一致**：主文档 §12.2 明说内容工作与开发完全并行，知识库会
+在测评记录存在期间被重建。服务端的 `bundle` 在进程启动时读一次、整个生命周期不变
+（`apps/api/src/index.ts`），所以跨进程重启后重算会产生与页面显示不同的 `result`——
+页面写着匹配度 55，模型解释的是 62。这属于本项目最不能接受的一类错误：对用户陈述
+自己结果时的失真。
+
+注意这**没有**违反「推荐结果由确定性算法得出」这条原则（主文档 §1.3 第一款
+「确定性优先」，以及 §4.1 决策一）：快照来自本服务端自己的库，不是请求体，推荐结果
+仍然只由 core 算出。该注释要相应改述为「结果只能来自服务端自己——重算，或读本服务端
+落库的快照」。
+
+> **顺带指出一处现存错误**：`packages/llm/src/index.ts` 的 `sliceOf` 注释写着
+> 「服务端自己重算诊断，不接受客户端传来的结果（**§5.1** 确定性）」，但主文档 §5.1
+> 是「出题原则」，与确定性无关。该原则的所在是 §1.3 与 §4.1。改述注释时一并把引用
+> 改正。
+
+不可回避的残余不一致：解读引用的路径正文（`formatCurrentPath`）始终来自当前
+`bundle`，无法随记录快照。这是内容与结果的分野，接受。
 
 ---
 
@@ -248,14 +336,33 @@ JWT_SECRET=
 新增组件：`Login.tsx`（注册/登录切换）、`History.tsx`（只读列表）。历史详情复用现有
 `ResultView`，组件本身不需要改——喂给它的是库里存的 `result` 快照。
 
-### 5.2 历史详情提供解读与追问（当场重算）
+### 5.2 历史详情：解读取存储值，追问仍实时
 
-点进历史记录后，解读与追问**可用**，且是**当场重新生成**的，不是快照。因为
-`answers` 已完整留存，`/api/interpret` 与 `/api/chat` 的既有入参就能跑，不需要任何
-改动。
+点进历史记录后：
+
+- **解读**直接渲染 `GET /api/assessments/:id` 带回来的 `interpretation`，**不重算**。
+  为空时才生成一次并补写（§4.7）。
+- **追问**是实时问答，没有「历史追问记录」这回事（§1.2）。它锚在该记录的主推荐
+  路径上，上下文由该记录的 `answers` 与 `result` 快照构造。
 
 这不违反 §4.2 第 4 条——那条防的是**混用**（拿别人的画像解释你），而这里是用户
-主动打开的一条规定记录，上下文只由它自己的 `answers` 构造。不变量的准确措辞见 §7。
+主动打开的一条规定记录，上下文只由它自己的数据构造。不变量的准确措辞见 §7。
+
+### 5.3 组件改动
+
+`ResultView` 不用改：喂给它的是库里存的 `result` 快照与 `paths` 摘要。需要改的是
+`PathAssistant`——它的入参从 `{answers, grade, pathId}` 变为
+`{assessmentId, pathId, interpretation?: string | null}`：
+
+- `interpretation` 非 `null` → 渲染它，**不触发**生成
+- `interpretation` 为 `null` → 走现有自动生成路径
+- `useChat` 的 transport body 改为 `{assessmentId, pathId}`
+
+**实现细节**：hook 不能条件调用，所以 `useCompletion` 照常调用，变的只是那个
+`useEffect` 在 `interpretation` 非 `null` 时不触发；渲染取值用
+`interpretation ?? completion`。这点要写进代码注释——写成条件调用 hook 会直接崩。
+
+`App.tsx` 另需把 `/api/diagnose` 返回的 `assessmentId` 一路传到结果页。
 
 ---
 
@@ -277,14 +384,22 @@ JWT_SECRET=
 
 ## 7. 不变量
 
-**上下文只由单一记录构造，且只由当前请求显式指定的那一份。**
+**上下文只由单一记录构造；那条记录由当前请求的 `assessmentId` 显式指定，且必须是
+请求者本人的。**
 
-这是 §4.2 第 4 条的准确表述。当前架构天然满足：`packages/llm` 的
-`sliceOf(answers, bundle, pathId)` 只接受当前请求 body 里的 `answers`，历史上任何
-记录都进不去。所以这不是要建的功能，而是要**守住**的性质。
+这是 §4.2 第 4 条的准确表述（原文是「替别人测的记录不进入提问者的 agent 上下文」）。
 
-明确后果：**谁将来想把历史喂进上下文，必须先按 `source` 过滤**，把 `other` 的记录
-排除在外。这句话要写进代码注释与主文档 §4.2。
+架构上天然满足：`packages/llm` 的 `sliceOf` / `buildSystemContent` 只接受调用方递
+进来的那一份 `{answers, result, pathId}`，没有任何「把历史一起塞进去」的入口。所以
+这不是要建的功能，而是要**守住**的性质。
+
+三条明确后果，都要写进代码注释与主文档 §4.2：
+
+1. 归属校验不可省——`assessmentId` 不是本人的记录一律 404（本文件 §4.2 末段）。
+2. **谁将来想把多条历史喂进上下文，必须先按 `source` 过滤**，把 `other` 的记录排除
+   在外。否则模型会拿别人的画像解释你，正是 §4.2 第 4 条要防的事。
+3. 「在历史详情里生成解读/追问」不算违反——那是用户主动打开的一条规定记录，上下文
+   只由它自己的数据构造，没有混用。
 
 ---
 
@@ -296,24 +411,32 @@ JWT_SECRET=
 
 | 层 | 用例 |
 |---|---|
-| `store` | 建表幂等；注册后可查回；用户名归一化去重；密码校验正确/错误；**追加语义**（同用户两条记录各自成行）；按用户倒序查询；按 id 查他人记录返回空 |
+| `store` | 建表幂等；注册后可查回；用户名归一化去重；密码校验正确/错误；**追加语义**（同用户两条记录各自成行）；按用户倒序查询；按 id 查他人记录返回空；**解读补写**（写一次、只写 `interpretation`、`answers`/`result`/`source`/`created_at` 不变） |
 | `auth` 路由 | 注册 201 + Set-Cookie；重复注册 409；用户名/密码越界 400；登录成功/失败 401；登出清 cookie；`me` 未登录 401；**未配置 `JWT_SECRET` 时 503**；空串 `JWT_SECRET=` 也走 503 |
-| 落库 | `/api/diagnose` 后库里多一行；`source` 与请求一致；`answers`/`result` 可 `JSON.parse` 回原形 |
-| 不变量 | 沿现有 `packages/llm/src/context.test.ts` 的口径，钉住上下文只含当前记录 |
-| 前端 | 未登录时渲染 Login；登录后进选对象；History 列出历次并点进 ResultView |
+| 落库 | `/api/diagnose` 后库里多一行且**返回 `assessmentId`**；`source` 与请求一致；`answers`/`result` 可 `JSON.parse` 回原形 |
+| 解读持久化 | 流正常结束后写入**完整**全文；**半截流（中途报错）不写入**，`interpretation` 保持 `NULL`；`GET /api/assessments/:id` 能取回该全文 |
+| `assessmentId` 入参 | `/api/interpret`、`/api/chat` 按 id 取记录，不再读请求体的 `answers`；**非本人的 id 返回 404**；`pathId` 不在该记录 `result` 里返回 404 |
+| 上下文 | 沿现有 `packages/llm/src/context.test.ts` 的口径，钉住上下文只含**当前那一条**记录；新钉一条：传入预置 `result` 时上下文用的是它，不是重算结果 |
+| 前端 | 未登录时渲染 Login；登录后进选对象；History 列出历次并点进 ResultView；**`interpretation` 非空时不再调 `/api/interpret`** |
 
 ---
 
 ## 9. 对主文档的修改
 
-这批同步更新主文档，三处：
+这批同步更新主文档，五处：
 
 1. **§9.1 页面结构**——流程图补登录步骤：
    `首页 → 登录/注册 → 选择测评对象 → 诊断问卷 → 诊断结果页 → 追问对话`；
    并注明「知识库可独立访问」不受登录门槛影响。
-2. **§3.4 HTTP 接口**——补账号与测评记录端点；删掉「§4.2 的测评记录留存尚未对应
-   任何端点」那段过时注记。
+2. **§3.4 HTTP 接口**——补账号与测评记录端点；`/api/interpret` 与 `/api/chat` 的
+   入参说明改为 `assessmentId`；删掉「§4.2 的测评记录留存尚未对应任何端点」那段
+   过时注记。
 3. **§4.2 第 4 条**——改成 §7 的不变量措辞，并指向本文件。
+4. **§4.2 的留存表格**——补一行「个性化解读」，注明是对原文的扩展。
+5. **`packages/llm/src/index.ts` 里 `sliceOf` 的注释**——那句「服务端自己重算诊断，
+   不接受客户端传来的结果（§5.1 确定性）」有两处问题：措辞要松弛成「结果只能来自
+   服务端自己：重算，或读本服务端落库的快照」，**引用也标错了**（§5.1 是出题原则，
+   该原则在 §1.3 与 §4.1）。一并改掉。
 
 另可顺带补 **§3.2 目录结构**（`apps/api` 下的 `auth.ts` / `store.ts` / `data/`）。
 
