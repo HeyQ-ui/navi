@@ -9,6 +9,11 @@ type Grade = 'freshman' | 'sophomore' | 'junior' | 'senior'
 
 const GRADES: readonly string[] = ['freshman', 'sophomore', 'junior', 'senior']
 
+/** §8.5 说追问只需「最近 N 轮对话」——只保留最近的，上下文与成本不随对话无限增长 */
+const MAX_CHAT_MESSAGES = 20
+/** 单次追问转成纯文本后的字符上限。超过视为异常输入，直接拒绝而不是静默截断 */
+const MAX_CHAT_CHARS = 8000
+
 export interface AppOptions {
   /** 测试注入用；生产不传，走 DeepSeek */
   model?: LanguageModel
@@ -163,7 +168,7 @@ export function createApp(bundle: KnowledgeBundle, options: AppOptions = {}): Ho
     const scoped: KnowledgeBundle = { ...bundle, questions: v.scopedQuestions }
     try {
       return streamInterpret(
-        { answers: v.answers, grade: v.grade ?? 'freshman', pathId, bundle: scoped },
+        { answers: v.answers, pathId, bundle: scoped },
         options,
       ).toTextStreamResponse()
     } catch (error) {
@@ -191,6 +196,12 @@ export function createApp(bundle: KnowledgeBundle, options: AppOptions = {}): Ho
       return c.json({ error: 'messages 为空' }, 400)
     }
 
+    const recent = messages.slice(-MAX_CHAT_MESSAGES)
+    const chars = recent.reduce((n, m) => n + String(m.content).length, 0)
+    if (chars > MAX_CHAT_CHARS) {
+      return c.json({ error: `追问内容过长：${chars} 字符，上限 ${MAX_CHAT_CHARS}` }, 400)
+    }
+
     if (!options.model && !process.env.DEEPSEEK_API_KEY) {
       return c.json({ error: '追问暂不可用：服务端未配置模型' }, 503)
     }
@@ -198,7 +209,7 @@ export function createApp(bundle: KnowledgeBundle, options: AppOptions = {}): Ho
     const scoped: KnowledgeBundle = { ...bundle, questions: v.scopedQuestions }
     try {
       return streamChat(
-        { answers: v.answers, grade: v.grade ?? 'freshman', pathId, messages, bundle: scoped },
+        { answers: v.answers, pathId, messages: recent, bundle: scoped },
         options,
       ).toUIMessageStreamResponse()
     } catch (error) {

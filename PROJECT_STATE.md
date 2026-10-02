@@ -81,7 +81,7 @@ apps/web            ←  React SPA，只消费 HTTP 接口
 
 ```bash
 pnpm install
-pnpm test        # 138 个测试，全绿
+pnpm test        # 153 个测试，全绿
 pnpm -r build    # tsc --noEmit + vite build，通过
 pnpm -r lint     # 通过
 ```
@@ -90,11 +90,11 @@ pnpm -r lint     # 通过
 
 | 包 | 测试数 | 覆盖内容 |
 |---|---|---|
-| `packages/knowledge` | 16 | frontmatter / 块解析 / 校验规则 / 编译顺序确定性 / 诚实边界 |
+| `packages/knowledge` | 21 | frontmatter / 块解析 / `:::` 容器解析 / 校验规则 / 编译顺序确定性 / 诚实边界 |
 | `packages/core` | 61 | 六个算法模块 + 黄金案例集 |
-| `packages/llm` | 14 | SDK 冒烟 / 上下文组装 / 模型编排 / 降级 |
-| `apps/api` | 22 | 五个端点 + 年级分流 + 完整性校验 + LLM 降级 |
-| `apps/web` | 25 | 问卷 + 结果页 + 本路径选择 + 解读与追问 |
+| `packages/llm` | 17 | SDK 冒烟 / 上下文组装 / 模型编排 / 降级 |
+| `apps/api` | 28 | 五个端点 + 年级分流 + 完整性校验 + LLM 降级 + 追问上限 |
+| `apps/web` | 26 | 问卷 + 结果页 + 本路径选择 + 解读与追问 |
 
 ### 端到端验证结果（已实测）
 
@@ -282,6 +282,8 @@ match(path)                  = Σ(match_i × W'[i])
 **后果**：§8.7 对解读端点不成立。用户会看到一句半截的解读，并以为它是完整的——对一个以「信息准确性」为承诺的产品，这比整页报错更糟。发生在首 token 之前的失败（坏 Key、欠费、连不上）不受影响，那些在流打开前就被识别为 503。
 
 **证据**：`packages/llm/src/index.test.ts` 里名为「【已知缺陷】流中途出错时 text 静默返回已累积的部分文本」的用例把当前行为钉住了。
+
+> **决定：保持现状，不修**（2026-10-02，项目所有者）。理由是不为此改动已批准的端点契约。修复方向留档见下，将来若要动手，先改设计文档再改代码。
 
 **修复方向**（需先改设计文档 D3 的端点契约，故未在计划②内动手）：把 `/api/interpret` 从 `toTextStreamResponse()` 换成 `toUIMessageStreamResponse()`，前端相应改用 `useChat` 消费。UI 消息流自带错误通道，届时上面那条用例会主动变红，提醒一并更新。另一种更小但不完整的做法是在开流前先等到首 token、失败即返回 503——它挡不住首 token 之后的失败。
 

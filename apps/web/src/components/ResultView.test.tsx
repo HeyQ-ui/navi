@@ -1,15 +1,30 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { ResultView } from './ResultView.js'
-import type { DiagnosisResult, PathSummary } from '../api.js'
 
 // ResultView 内部会挂载 PathAssistant，后者用 useCompletion / useChat 发请求。
 // jsdom 里没有后端，必须替身掉，否则每个 ResultView 用例都会产生未处理的 fetch 失败。
 vi.mock('@ai-sdk/react', () => ({
-  useCompletion: () => ({ completion: '', complete: vi.fn(), isLoading: false, error: undefined }),
-  useChat: () => ({ messages: [], sendMessage: vi.fn(), status: 'ready', error: undefined }),
+  useCompletion: vi.fn(),
+  useChat: vi.fn(),
 }))
+
+import { useChat, useCompletion } from '@ai-sdk/react'
+import { ResultView } from './ResultView.js'
+import type { DiagnosisResult, PathSummary } from '../api.js'
+
+beforeEach(() => {
+  // 解读内容随 pathId 变——这样「换路径不串台」可以直接断言文本，而不是靠节点身份间接推断
+  vi.mocked(useCompletion).mockImplementation(((options: { body: { pathId: string } }) => ({
+    completion: `解读-${options.body.pathId}`,
+    complete: vi.fn(),
+    isLoading: false,
+    error: undefined,
+  })) as never)
+  vi.mocked(useChat).mockReturnValue({
+    messages: [], sendMessage: vi.fn(), status: 'ready', error: undefined,
+  } as never)
+})
 
 const paths: PathSummary[] = [
   { id: 'same-discipline-baoyan', title: '本学科保研', category: 'academic', span: 'same-discipline', status: 'verified', summary: '' },
@@ -144,13 +159,25 @@ describe('ResultView · 本路径选择（设计文档 §8.5）', () => {
     expect(screen.getByRole('radio', { name: /本学科保研/ })).not.toBeChecked()
   })
 
-  it('切换路径时 PathAssistant 重新挂载，上一路径的解读与对话不会残留', async () => {
+  it('切换路径时上一路径的解读消失、新路径的解读出现（不串台）', async () => {
+    render(<ResultView result={result} paths={paths} answers={{}} grade="freshman" />)
+    expect(screen.getByText('解读-same-discipline-baoyan')).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('radio', { name: /考公考编/ }))
+
+    expect(screen.queryByText('解读-same-discipline-baoyan')).not.toBeInTheDocument()
+    expect(screen.getByText('解读-civil-service')).toBeInTheDocument()
+  })
+
+  it('切换路径时 PathAssistant 重新挂载（否则真实 hook 的对话状态不会重置）', async () => {
+    // 上面那条断言的是「数据接对了」，这条断言的是「组件被重建了」——真实 useChat /
+    // useCompletion 的对话状态挂在组件实例上，只有卸载重建才会清空。缺 key 时上面那条
+    // 仍然会通过（mock 每次渲染都按新 pathId 给值），所以两条必须都在。
     render(<ResultView result={result} paths={paths} answers={{}} grade="freshman" />)
     const before = screen.getByPlaceholderText(/追问/)
 
     await userEvent.click(screen.getByRole('radio', { name: /考公考编/ }))
 
-    // key 变化触发卸载重建，节点身份随之改变——这是「不串台」的可观测证据
     expect(screen.getByPlaceholderText(/追问/)).not.toBe(before)
   })
 })

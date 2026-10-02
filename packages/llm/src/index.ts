@@ -57,7 +57,7 @@ function splitSystem(messages: ModelMessage[]): {
 type StreamResult = ReturnType<typeof streamText>
 
 export function streamInterpret(
-  input: { answers: Answers; grade: string; pathId: string; bundle: KnowledgeBundle },
+  input: { answers: Answers; pathId: string; bundle: KnowledgeBundle },
   options: StreamOptions = {},
 ): StreamResult {
   const knowledge = sliceOf(input.answers, input.bundle, input.pathId)
@@ -74,7 +74,6 @@ export function streamInterpret(
 export function streamChat(
   input: {
     answers: Answers
-    grade: string
     pathId: string
     messages: ModelMessage[]
     bundle: KnowledgeBundle

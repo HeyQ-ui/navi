@@ -2,7 +2,7 @@ import { readFileSync, writeFileSync, readdirSync, existsSync, mkdirSync } from 
 import { join, dirname } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { parse as parseYaml } from 'yaml'
-import { parseFrontmatter, parseBlocks } from './parse.js'
+import { parseFrontmatter, parseBlocks, parseContainers } from './parse.js'
 import { validateKnowledge } from './validate.js'
 import type {
   KnowledgeBundle, IndicatorDef, QuestionDef, ArchetypeDef, PathDef, Block,
@@ -58,10 +58,11 @@ export function buildKnowledge(rootDir = ROOT): KnowledgeBundle {
   // 按 id 排序，使顺序与目录命名无关。「同样输入必然同样输出」依赖于此
   paths.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
 
-  // 诚实边界清单（设计文档 §8.4）。复用与路径正文相同的解析路径
+  // 诚实边界清单（设计文档 §8.4）。整个文件是 `:::boundary` 容器序列，
+  // 走 parseContainers 而非 parseBlocks，每条边界各成一块且不带字面 `:::`
   const boundariesPath = join(rootDir, 'boundaries.md')
   const boundaries = existsSync(boundariesPath)
-    ? parseBlocks(parseFrontmatter(readFileSync(boundariesPath, 'utf8')).content)
+    ? parseContainers(parseFrontmatter(readFileSync(boundariesPath, 'utf8')).content)
     : []
 
   return { indicators, questions, archetypes, paths, blocks, boundaries }

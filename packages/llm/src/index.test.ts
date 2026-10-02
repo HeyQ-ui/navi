@@ -53,7 +53,7 @@ function mockModel(text = '解读正文'): MockLanguageModelV3 {
 describe('streamInterpret', () => {
   it('产出模型返回的解读正文', async () => {
     const result = streamInterpret(
-      { answers, grade: 'freshman', pathId: 'same-discipline-baoyan', bundle },
+      { answers, pathId: 'same-discipline-baoyan', bundle },
       { model: mockModel('你现在大一，保研是最紧的一条路。') },
     )
     expect(await result.text).toBe('你现在大一，保研是最紧的一条路。')
@@ -62,7 +62,7 @@ describe('streamInterpret', () => {
   it('发给模型的系统提示词同时含防幻觉约束与知识正文', async () => {
     const model = mockModel()
     await streamInterpret(
-      { answers, grade: 'freshman', pathId: 'same-discipline-baoyan', bundle },
+      { answers, pathId: 'same-discipline-baoyan', bundle },
       { model },
     ).text
 
@@ -79,7 +79,7 @@ describe('streamChat', () => {
     const model = mockModel('两条路的时间窗不同。')
     const result = streamChat(
       {
-        answers, grade: 'freshman', pathId: 'same-discipline-baoyan', bundle,
+        answers, pathId: 'same-discipline-baoyan', bundle,
         messages: [{ role: 'user', content: '保研和考研怎么选？' }],
       },
       { model },
@@ -116,7 +116,7 @@ describe('降级', () => {
 
     await expect(
       streamInterpret(
-        { answers, grade: 'freshman', pathId: 'same-discipline-baoyan', bundle },
+        { answers, pathId: 'same-discipline-baoyan', bundle },
         { model: broken },
       // .text 触发实际调用；失败必须能冒泡到调用方，由 API 层转成降级响应
       ).text,
@@ -142,7 +142,7 @@ describe('降级', () => {
     })
 
     const result = streamInterpret(
-      { answers, grade: 'freshman', pathId: 'same-discipline-baoyan', bundle },
+      { answers, pathId: 'same-discipline-baoyan', bundle },
       { model: brokenMidStream },
     )
     expect(await result.text).toBe('前半句')

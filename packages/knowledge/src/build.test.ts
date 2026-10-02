@@ -56,7 +56,7 @@ describe('buildKnowledge · 诚实边界', () => {
     expect(buildKnowledge(makeTempRoot()).boundaries).toEqual([])
   })
 
-  it('解析 boundaries.md 为内容块', () => {
+  it('解析 boundaries.md 为逐条 boundary 块，raw 里不带字面 :::', () => {
     const root = makeTempRoot()
     writeFileSync(
       join(root, 'boundaries.md'),
@@ -65,6 +65,16 @@ describe('buildKnowledge · 诚实边界', () => {
     )
     const blocks = buildKnowledge(root).boundaries
     expect(blocks).toHaveLength(1)
-    expect(blocks[0]!.raw).toContain('转专业政策')
+    expect(blocks[0]!.type).toBe('boundary')
+    expect(blocks[0]!.title).toBe('topic="转专业政策"')
+    expect(blocks[0]!.raw).toBe('我们无法给出可靠建议。')
+  })
+
+  it('真实的 boundaries.md 解析出两条 boundary 块（防止将来退化时无人报警）', () => {
+    const blocks = buildKnowledge().boundaries
+    expect(blocks).toHaveLength(2)
+    expect(blocks.every(b => b.type === 'boundary')).toBe(true)
+    expect(blocks.map(b => b.title)).toEqual(['topic="转专业政策"', 'topic="院校录取分数线预测"'])
+    expect(blocks.every(b => !b.raw.includes(':::'))).toBe(true)
   })
 })

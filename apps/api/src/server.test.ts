@@ -6,7 +6,7 @@ import { createApp } from './server.js'
 import type { KnowledgeBundle } from '@navi/core'
 
 /** 会说固定话的 mock 模型；形状与 packages/llm 的冒烟测试一致 */
-function mockModel(text: string): LanguageModel {
+function mockModel(text: string): MockLanguageModelV3 {
   return new MockLanguageModelV3({
     doStream: async () => ({
       stream: simulateReadableStream({
@@ -329,6 +329,30 @@ describe('POST /api/chat', () => {
     await res.text()
 
     expect(JSON.stringify(model.doStreamCalls[0]!.prompt)).toContain('保研和考研怎么选？')
+  })
+
+  it('只保留最近 20 条消息，更早的不进模型（§8.5「最近 N 轮对话」）', async () => {
+    const model = mockModel('好')
+    const many = Array.from({ length: 25 }, (_, i) => ({
+      id: `m${i}`, role: 'user', parts: [{ type: 'text', text: `第${i + 1}问` }],
+    }))
+
+    const res = await post(createApp(bundle, { model }), '/api/chat', {
+      answers: okAnswers, grade: 'freshman', pathId: 'same-discipline-baoyan', messages: many,
+    })
+    await res.text()
+
+    const prompt = JSON.stringify(model.doStreamCalls[0]!.prompt)
+    expect(prompt).not.toContain('第1问')
+    expect(prompt).toContain('第25问')
+  })
+
+  it('追问内容超过字符上限时返回 400，不把超大请求送进模型', async () => {
+    const res = await post(createApp(bundle, { model: mockModel('不该出现') }), '/api/chat', {
+      answers: okAnswers, grade: 'freshman', pathId: 'same-discipline-baoyan',
+      messages: [{ id: 'm1', role: 'user', parts: [{ type: 'text', text: 'x'.repeat(9000) }] }],
+    })
+    expect(res.status).toBe(400)
   })
 
   it('messages 为空时返回 400', async () => {

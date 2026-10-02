@@ -115,6 +115,8 @@ export interface ArchetypeDef {
 
 export interface Block {
   type: string
+  /** `:::myth 标题` 写法里 `:::` 之后的那段。没有则为 undefined（§6.3 不强制字段） */
+  title?: string
   html: string
   raw: string
 }
