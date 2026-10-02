@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { diagnose, findCloseMatches } from './diagnose.js'
-import type { KnowledgeBundle, Question } from './types.js'
+import { diagnose, findTiedPaths } from './diagnose.js'
+import type { DiagnosisResult, KnowledgeBundle, PathResult, Question } from './types.js'
 
 function q(id: string, indicator: string): Question {
   return { id, indicator: indicator as never, text: id, options: ['a','b','c','d','e'], weight: 1 }
@@ -132,23 +132,52 @@ describe('diagnose', () => {
   })
 })
 
-describe('findCloseMatches', () => {
-  it('找出与最高分差距在阈值内的路径', () => {
-    const base = makeKnowledge()
-    const result = diagnose(fullAnswers, {
+describe('findTiedPaths', () => {
+  function path(id: string, match: number, applicable = true): PathResult {
+    return {
+      id,
+      match,
+      confidence: 0,
+      eligibility: { applicable, hardFailures: [], softWarnings: [] },
+      contributions: [],
+    }
+  }
+
+  const base: DiagnosisResult = { indicators: {}, archetypes: [], paths: [] }
+
+  it('返回显示分与最高分相同的可适用路径，含最高分那条自身', () => {
+    const result: DiagnosisResult = {
       ...base,
-      paths: [
-        { ...base.paths[0]!, id: 'a', weights: [{ indicator: 'academic-interest', weight: 1, ideal: 100 }] },
-        { ...base.paths[0]!, id: 'b', weights: [{ indicator: 'academic-interest', weight: 1, ideal: 98 }] },
-        { ...base.paths[0]!, id: 'c', weights: [{ indicator: 'academic-interest', weight: 1, ideal: 10 }] },
-      ],
-    })
-    const close = findCloseMatches(result, 5)
-    expect(close.map(p => p.id).sort()).toEqual(['a', 'b'])
+      paths: [path('a', 78.4), path('b', 78.2), path('c', 70)],
+    }
+    expect(findTiedPaths(result).map(p => p.id)).toEqual(['a', 'b'])
   })
 
-  it('没有接近的路径时返回仅含最高分的那一条', () => {
-    const result = diagnose(fullAnswers, makeKnowledge())
-    expect(findCloseMatches(result, 5)).toHaveLength(1)
+  it('浮点接近但显示分不同不算同分', () => {
+    const result: DiagnosisResult = { ...base, paths: [path('a', 78.4), path('b', 77.4)] }
+    expect(findTiedPaths(result).map(p => p.id)).toEqual(['a'])
+  })
+
+  it('硬性不适用的路径不参与同分判定，即使分数相同', () => {
+    const result: DiagnosisResult = {
+      ...base,
+      paths: [path('a', 78), path('d', 78, false)],
+    }
+    expect(findTiedPaths(result).map(p => p.id)).toEqual(['a'])
+  })
+
+  it('没有任何可适用路径时返回空数组', () => {
+    const result: DiagnosisResult = { ...base, paths: [path('a', 78, false), path('b', 60, false)] }
+    expect(findTiedPaths(result)).toEqual([])
+  })
+
+  it('全部可适用路径都是 0 分时算并列（取整后相等）', () => {
+    const result: DiagnosisResult = { ...base, paths: [path('a', 0), path('b', 0)] }
+    expect(findTiedPaths(result).map(p => p.id)).toEqual(['a', 'b'])
+  })
+
+  it('不依赖 paths 的排序：乱序输入照样取到最高分', () => {
+    const result: DiagnosisResult = { ...base, paths: [path('c', 70), path('a', 78), path('b', 78)] }
+    expect(findTiedPaths(result).map(p => p.id).sort()).toEqual(['a', 'b'])
   })
 })

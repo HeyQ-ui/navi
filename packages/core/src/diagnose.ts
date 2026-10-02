@@ -7,11 +7,7 @@ import { computeArchetypeAffinity } from './archetype.js'
 export interface DiagnoseOptions {
   /** 画像聚类温度，默认 0.1 */
   temperature?: number
-  /** 接近判定的分数阈值，默认 5 */
-  closeMatchThreshold?: number
 }
-
-const DEFAULT_CLOSE_THRESHOLD = 5
 
 /**
  * 诊断编排入口（设计文档 §4）。
@@ -52,17 +48,22 @@ export function diagnose(
 }
 
 /**
- * 找出与最高分差距在阈值内的路径（设计文档 §10「多条路径分数接近」）。
- * 优先在适用路径中比较；若全部不适用，则在整个结果中比较。
+ * 找出与最高显示分并列的适用路径（设计文档 §9.3）。
+ *
+ * 判据是 Math.round(match)：match 是加权平均和，精确相等在实际数据里几乎不可能
+ * 出现，按浮点比较会让这条提示永不触发。取整后比较，用户屏幕上看到的分数一样，
+ * 提示就出现。
+ *
+ * 返回的数组含最高分那条自身（调用方按 length > 1 判断是否需要展示并列）。
+ * 只用可适用路径参与判定：硬性不适用的路径没有匹配度可言，把它算进并列是误导。
+ * 同理，一条可适用的都没有时返回空数组——此时没有主推荐路径，也无从谈并列。
+ *
+ * 不依赖 paths 已排序：显式取最大值，避免调用方换了顺序就悄悄出错。
  */
-export function findCloseMatches(
-  result: DiagnosisResult,
-  threshold: number = DEFAULT_CLOSE_THRESHOLD,
-): PathResult[] {
+export function findTiedPaths(result: DiagnosisResult): PathResult[] {
   const applicable = result.paths.filter(p => p.eligibility.applicable)
-  const pool = applicable.length > 0 ? applicable : result.paths
-  if (pool.length === 0) return []
+  if (applicable.length === 0) return []
 
-  const top = pool[0]!.match
-  return pool.filter(p => top - p.match <= threshold)
+  const top = Math.max(...applicable.map(p => Math.round(p.match)))
+  return applicable.filter(p => Math.round(p.match) === top)
 }
