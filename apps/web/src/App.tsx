@@ -1,11 +1,15 @@
 import { useEffect, useState } from 'react'
-import { fetchMe, fetchQuestions, postDiagnose } from './api.js'
-import type { AssessmentSource, DiagnosisResponse, Grade, QuestionsResponse } from './api.js'
+import { fetchAssessment, fetchMe, fetchQuestions, postDiagnose } from './api.js'
+import type {
+  AssessmentDetail, AssessmentSource, DiagnosisResponse, Grade, QuestionsResponse,
+} from './api.js'
+import { History } from './components/History.js'
 import { Login } from './components/Login.js'
 import { Questionnaire } from './components/Questionnaire.js'
 import { ResultView } from './components/ResultView.js'
 
-type Stage = 'auth' | 'choosing' | 'grade' | 'loading' | 'questions' | 'result' | 'error'
+type Stage =
+  | 'auth' | 'choosing' | 'grade' | 'loading' | 'questions' | 'result' | 'history' | 'error'
 
 const GRADE_OPTIONS: ReadonlyArray<{ value: Grade; label: string }> = [
   { value: 'freshman', label: '大一' },
@@ -22,6 +26,7 @@ export function App() {
   const [grade, setGrade] = useState<Grade>('freshman')
   const [data, setData] = useState<QuestionsResponse | null>(null)
   const [result, setResult] = useState<DiagnosisResponse | null>(null)
+  const [historyDetail, setHistoryDetail] = useState<AssessmentDetail | null>(null)
   const [message, setMessage] = useState('')
 
   // 挂载时问一次服务端「我是谁」：已登录的用户不该被推回登录页
@@ -57,6 +62,21 @@ export function App() {
     }
   }
 
+  async function openHistory(id: string) {
+    try {
+      setHistoryDetail(await fetchAssessment(id))
+      setStage('result')
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : '加载失败')
+      setStage('error')
+    }
+  }
+
+  function backHome() {
+    setHistoryDetail(null)
+    setStage('choosing')
+  }
+
   if (stage === 'auth') {
     return <Login onSuccess={name => { setUsername(name); setStage('choosing') }} />
   }
@@ -84,6 +104,24 @@ export function App() {
             测测别人
           </button>
         </div>
+        <button
+          type="button"
+          className="mt-4 block text-sm text-gray-600 underline"
+          onClick={() => setStage('history')}
+        >
+          我的历史
+        </button>
+      </div>
+    )
+  }
+
+  if (stage === 'history') {
+    return (
+      <div className="mx-auto max-w-3xl p-6">
+        <button type="button" className="mb-4 text-sm text-gray-600 underline" onClick={backHome}>
+          回到首页
+        </button>
+        <History onOpen={openHistory} />
       </div>
     )
   }
@@ -122,14 +160,37 @@ export function App() {
     )
   }
 
-  if (stage === 'result' && result !== null && data !== null) {
+  // 刚测完与从历史点进来渲染的是同一个组件，只是数据来源不同。
+  // AssessmentDetail 自带 paths 与 tiedPaths，历史这条路径不需要第二次请求。
+  const page =
+    historyDetail !== null
+      ? {
+          result: historyDetail.result,
+          paths: historyDetail.paths,
+          tiedPaths: historyDetail.tiedPaths,
+          assessmentId: historyDetail.id,
+          interpretation: historyDetail.interpretation,
+        }
+      : result !== null && data !== null
+        ? {
+            result,
+            paths: data.paths,
+            tiedPaths: result.tiedPaths,
+            assessmentId,
+            interpretation: null,
+          }
+        : null
+
+  if (stage === 'result' && page !== null) {
     return (
-      <ResultView
-        result={result}
-        paths={data.paths}
-        tiedPaths={result.tiedPaths}
-        assessmentId={assessmentId}
-      />
+      <>
+        <div className="mx-auto max-w-3xl px-6 pt-6">
+          <button type="button" className="text-sm text-gray-600 underline" onClick={backHome}>
+            回到首页
+          </button>
+        </div>
+        <ResultView {...page} />
+      </>
     )
   }
 

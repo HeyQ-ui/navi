@@ -83,3 +83,39 @@ export async function authenticate(
 export async function logout(): Promise<void> {
   await fetch('/api/auth/logout', { method: 'POST' })
 }
+
+export interface AssessmentSummary {
+  id: string
+  source: AssessmentSource
+  grade: string | null
+  createdAt: string
+  mainPathId: string | null
+  /** 服务端补好的中文路径名，前端不必再取一次 /api/questions */
+  mainPathTitle: string | null
+  match: number | null
+}
+
+export interface AssessmentDetail {
+  id: string
+  source: AssessmentSource
+  grade: string | null
+  createdAt: string
+  answers: Record<string, number>
+  result: DiagnosisResult
+  interpretation: string | null
+  mainPathId: string | null
+  tiedPaths: string[]
+  /** 自带路径摘要，历史详情因此只需一次请求 */
+  paths: PathSummary[]
+}
+
+export async function fetchAssessments(): Promise<AssessmentSummary[]> {
+  const res = await fetch('/api/assessments')
+  const body = (await jsonOrThrow(res, '获取历史')) as { assessments: AssessmentSummary[] }
+  return body.assessments
+}
+
+export async function fetchAssessment(id: string): Promise<AssessmentDetail> {
+  const res = await fetch(`/api/assessments/${encodeURIComponent(id)}`)
+  return (await jsonOrThrow(res, '获取测评记录')) as AssessmentDetail
+}
