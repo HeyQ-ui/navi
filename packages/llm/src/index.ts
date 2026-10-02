@@ -37,7 +37,7 @@ export function createDeepSeekModel(env: NodeJS.ProcessEnv = process.env): Langu
 
 /** 服务端自己重算诊断，不接受客户端传来的结果（§5.1 确定性） */
 function sliceOf(answers: Answers, bundle: KnowledgeBundle, pathId: string): KnowledgeSlice {
-  return { bundle, result: diagnose(answers, bundle), pathId }
+  return { bundle, result: diagnose(answers, bundle), pathId, answers }
 }
 
 /**

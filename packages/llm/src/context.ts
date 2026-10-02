@@ -1,27 +1,30 @@
-import type { DiagnosisResult, KnowledgeBundle } from '@navi/core'
+import type { Answers, DiagnosisResult, KnowledgeBundle, Question } from '@navi/core'
 import type { ModelMessage } from 'ai'
 
 export interface KnowledgeSlice {
   bundle: KnowledgeBundle
   result: DiagnosisResult
-  /** 「本路径」——学生当前选中的那条 */
+  /** 「本路径」——学生当前查看的那一条 */
   pathId: string
+  /** 本次逐题作答（题目 id → 选项序号 0–4） */
+  answers: Answers
 }
 
-/** 8 维分数 + 一致性，逐行列出 */
+/** 选项序号到可见记号。§5.2 的五档：档位越高，该指标越高 */
+const OPTION_MARKS = ['①', '②', '③', '④', '⑤']
+
+/** 8 维分数。不带作答一致性——它是内部指标，不进模型上下文（设计文档 §7.3） */
 function formatIndicators(slice: KnowledgeSlice): string {
-  // 键显式放宽为 string：indicators 的 id 是 IndicatorId 联合类型，
-  // 而 Object.entries 给出的是 string
   const names = new Map<string, string>(slice.bundle.indicators.map(i => [i.id, i.name]))
   return Object.entries(slice.result.indicators)
     .map(([id, score]) => {
       if (!score.known) return `- ${names.get(id) ?? id}：无数据`
-      return `- ${names.get(id) ?? id}：${Math.round(score.score)}/100（作答一致性 ${score.consistency.toFixed(2)}）`
+      return `- ${names.get(id) ?? id}：${Math.round(score.score)}/100`
     })
     .join('\n')
 }
 
-/** 路径匹配结果，含不适用原因 */
+/** 路径匹配结果，含不适用原因。不带置信度（设计文档 §7.4） */
 function formatPaths(slice: KnowledgeSlice): string {
   const titles = new Map(slice.bundle.paths.map(p => [p.id, p.title]))
   return slice.result.paths
@@ -29,7 +32,36 @@ function formatPaths(slice: KnowledgeSlice): string {
       const title = titles.get(p.id) ?? p.id
       const reasons = p.eligibility.hardFailures.map(f => f.message).join('；')
       if (!p.eligibility.applicable) return `- ${title}：不适用（${reasons}）`
-      return `- ${title}：匹配度 ${Math.round(p.match)}，置信度 ${Math.round(p.confidence * 100)}%`
+      return `- ${title}：匹配度 ${Math.round(p.match)}`
+    })
+    .join('\n')
+}
+
+/**
+ * 本路径的分项贡献（设计文档 §8.2）。
+ *
+ * 这是 core 已经算好的分解，模型只需转述，不需要也不得自己乘权重——传原始权重
+ * 加原始作答让模型自行计算，会让它开始做算术并自行下结论，直接违反 §1.3 的
+ * 确定性优先。按贡献降序，让最大的影响因素先被看到。
+ */
+function formatContributions(slice: KnowledgeSlice): string {
+  const current = slice.result.paths.find(p => p.id === slice.pathId)
+  if (current === undefined || current.contributions.length === 0) {
+    return '（这条路径没有可用的分项依据——它当前对你硬性不适用）'
+  }
+
+  const names = new Map<string, string>(slice.bundle.indicators.map(i => [i.id, i.name]))
+  const pathDef = slice.bundle.paths.find(p => p.id === slice.pathId)
+  const ideals = new Map<string, number>((pathDef?.weights ?? []).map(w => [w.indicator, w.ideal]))
+
+  return [...current.contributions]
+    .sort((a, b) => b.contribution - a.contribution)
+    .map(c => {
+      const mine = slice.result.indicators[c.indicator]
+      const where = mine?.known ? `你的位置 ${Math.round(mine.score)}` : '你的位置无数据'
+      const ideal = ideals.get(c.indicator)
+      const idealText = ideal === undefined ? '' : `，理想值 ${ideal}`
+      return `- ${names.get(c.indicator) ?? c.indicator}：${where}${idealText}，权重 ${c.weight.toFixed(2)}，贡献 ${c.contribution.toFixed(1)}`
     })
     .join('\n')
 }
@@ -43,11 +75,40 @@ function formatArchetypes(slice: KnowledgeSlice): string {
     .join('\n')
 }
 
-/** 本路径的完整正文（按知识库顺序，保留块标题） */
+/** 单道题的题干与学生的选择。答案缺失或越界时显示「未作答」，不让异常数据打断装配 */
+function formatQuestion(question: Question, answer: number | undefined): string {
+  const head = `- ${question.text}`
+  const valid =
+    answer !== undefined && Number.isInteger(answer) && answer >= 0 && answer < question.options.length
+  if (!valid) return `${head}\n  你的选择：未作答`
+  return `${head}\n  你的选择：${OPTION_MARKS[answer] ?? answer} ${question.options[answer] ?? ''}`
+}
+
+/**
+ * 本次问卷的题干、选项与学生的逐题作答（设计文档 §8.2）。
+ *
+ * 没有这一段，模型无法回答「为什么是这条路径」——它只有分数与匹配度，任何
+ * 「为什么」都只能是反推，而反推就是编造。
+ *
+ * 按 bundle.questions 迭代而不是遍历 answers 的键：answers 允许夹带其他年级的
+ * 题目 id（§5.5 的刻意容忍），按键遍历会把那些题目一并喂给模型。
+ */
+function formatQuestions(slice: KnowledgeSlice): string {
+  if (slice.bundle.questions.length === 0) return '（本次没有题目记录）'
+  return slice.bundle.questions.map(q => formatQuestion(q, slice.answers[q.id])).join('\n')
+}
+
+/**
+ * 本路径的完整正文（按知识库顺序）。
+ * 保留块标题——标题是内容（如「排名前 10% 就稳了」），被剥掉的只有 ::: 标记
+ * 与块类型（设计文档 §6.3 第 4 条）。
+ */
 function formatCurrentPath(slice: KnowledgeSlice): string {
   const blocks = slice.bundle.blocks[slice.pathId] ?? []
   if (blocks.length === 0) return '（这条路径暂无正文内容）'
-  return blocks.map(b => b.raw).join('\n\n')
+  return blocks
+    .map(b => (b.title === undefined ? b.raw : `**${b.title}**\n${b.raw}`))
+    .join('\n\n')
 }
 
 /** 全部路径的 summary——回答「保研和考研怎么选」这类跨路径问题靠它 */
@@ -78,8 +139,14 @@ export function buildSystemContent(slice: KnowledgeSlice): string {
     '## 诊断结果',
     formatPaths(slice),
     '',
+    `### 本路径（${currentTitle}）的匹配依据`,
+    formatContributions(slice),
+    '',
     '## 画像标签',
     formatArchetypes(slice),
+    '',
+    '## 本次问卷与学生的逐题作答（选项序号 ①–⑤ 依次由低到高）',
+    formatQuestions(slice),
     '',
     `## 学生当前查看的路径：${currentTitle}（全文）`,
     formatCurrentPath(slice),

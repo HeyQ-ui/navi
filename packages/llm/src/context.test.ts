@@ -5,13 +5,22 @@ import type { DiagnosisResult, KnowledgeBundle } from '@navi/core'
 
 const bundle: KnowledgeBundle = {
   indicators: [{ id: 'academic-interest', name: '学术志趣' }],
-  questions: [],
+  questions: [
+    {
+      id: 'q1',
+      indicator: 'academic-interest',
+      text: '导师给你一篇 20 页的英文文献，让你一周后汇报。你的第一反应更接近哪一端？',
+      options: ['头疼', '能读但会拖', '按部就班', '有点期待', '很兴奋'],
+      weight: 1,
+    },
+  ],
   archetypes: [],
   paths: [
     {
       id: 'same-discipline-baoyan', title: '本学科保研', category: 'academic',
       span: 'same-discipline', status: 'draft', summary: '保研的核心是用绩点排名换免试资格。',
-      weights: [], eligibility: [],
+      weights: [{ indicator: 'academic-interest', weight: 1, ideal: 85 }],
+      eligibility: [],
     },
     {
       id: 'civil-service', title: '考公考编 / 选调生', category: 'civil',
@@ -20,7 +29,10 @@ const bundle: KnowledgeBundle = {
     },
   ],
   blocks: {
-    'same-discipline-baoyan': [{ type: 'timeline', html: '<p>大三下夏令营</p>', raw: '大三下夏令营' }],
+    'same-discipline-baoyan': [
+      { type: 'timeline', html: '<p>大三下夏令营</p>', raw: '大三下夏令营' },
+      { type: 'myth', title: '排名前 10% 就稳了', html: '<p>绩点只是入场券</p>', raw: '绩点只是入场券' },
+    ],
     'civil-service': [],
   },
   boundaries: [{ type: 'free', html: '<p>转专业政策无法可靠回答</p>', raw: '转专业政策无法可靠回答' }],
@@ -35,29 +47,72 @@ const result: DiagnosisResult = {
     {
       id: 'same-discipline-baoyan', match: 78, confidence: 0.74,
       eligibility: { applicable: true, hardFailures: [], softWarnings: [] },
-      contributions: [],
+      contributions: [{ indicator: 'academic-interest', match: 90, weight: 1, contribution: 90 }],
     },
   ],
   archetypes: [{ id: 'steady-scholar', affinity: 0.68 }],
 }
 
-const knowledge = { bundle, result, pathId: 'same-discipline-baoyan' }
+const knowledge = {
+  bundle,
+  result,
+  pathId: 'same-discipline-baoyan',
+  answers: { q1: 3 },
+}
 
 describe('buildSystemContent', () => {
-  it('带上全部 8 维分数与一致性', () => {
+  it('带上全部 8 维分数', () => {
     const content = buildSystemContent(knowledge)
     expect(content).toContain('学术志趣')
-    expect(content).toContain('82')
-    expect(content).toContain('0.9')
+    expect(content).toContain('82/100')
+  })
+
+  it('不再带作答一致性（设计文档 §7.3）', () => {
+    expect(buildSystemContent(knowledge)).not.toContain('作答一致性')
+    expect(buildSystemContent(knowledge)).not.toContain('0.9')
+  })
+
+  it('不再带置信度（设计文档 §7.4）', () => {
+    expect(buildSystemContent(knowledge)).not.toContain('置信度')
+    expect(buildSystemContent(knowledge)).not.toContain('74')
+  })
+
+  it('带上本次题目、选项与学生的选择（设计文档 §8.2）', () => {
+    const content = buildSystemContent(knowledge)
+    expect(content).toContain('导师给你一篇 20 页的英文文献')
+    expect(content).toContain('④ 有点期待')
+  })
+
+  it('带着本路径的分项贡献（core 已算好的分解）', () => {
+    const content = buildSystemContent(knowledge)
+    expect(content).toContain('本路径（本学科保研）的匹配依据')
+    expect(content).toContain('贡献')
+  })
+
+  it('硬性不适用导致分项为空时给出说明，不留下空段', () => {
+    const inapplicable = {
+      ...knowledge,
+      result: {
+        ...result,
+        paths: [{ ...result.paths[0]!, contributions: [] }],
+      },
+    }
+    expect(buildSystemContent(inapplicable)).toContain('没有可用的分项依据')
   })
 
   it('带上画像软归属百分比', () => {
     expect(buildSystemContent(knowledge)).toContain('68%')
   })
 
-  it('带上本路径全文，且只有本路径的正文', () => {
+  it('带上本路径全文，且带块标题、不带容器标记', () => {
     const content = buildSystemContent(knowledge)
     expect(content).toContain('大三下夏令营')
+    expect(content).toContain('排名前 10% 就稳了')
+    expect(content).not.toContain(':::')
+  })
+
+  it('不带其他路径的正文', () => {
+    expect(buildSystemContent(knowledge)).not.toContain('体制内时间线')
   })
 
   it('带上全部路径的 summary（跨路径对比问题靠它）', () => {
@@ -68,6 +123,21 @@ describe('buildSystemContent', () => {
 
   it('带上诚实边界', () => {
     expect(buildSystemContent(knowledge)).toContain('转专业政策无法可靠回答')
+  })
+
+  it('只列出本次题目集里的题：夹带的其他年级题目不进上下文（Review Focus 3）', () => {
+    const withStray = {
+      ...knowledge,
+      answers: { ...knowledge.answers, 'gpa-senior-only': 4 },
+    }
+    const content = buildSystemContent(withStray)
+    expect(content).not.toContain('gpa-senior-only')
+  })
+
+  it('答案缺失或越界时显示「未作答」，不抛错（Review Focus 4）', () => {
+    const broken = { ...knowledge, answers: { ...knowledge.answers, q1: 99 } }
+    expect(() => buildSystemContent(broken)).not.toThrow()
+    expect(buildSystemContent(broken)).toContain('未作答')
   })
 })
 
