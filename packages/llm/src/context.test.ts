@@ -83,21 +83,38 @@ describe('buildSystemContent', () => {
     expect(content).toContain('④ 有点期待')
   })
 
-  it('带着本路径的分项贡献（core 已算好的分解）', () => {
+  it('带着本路径的分项贡献，但不给权重与乘积（§8.2 给构成要素而非公式）', () => {
     const content = buildSystemContent(knowledge)
     expect(content).toContain('本路径（本学科保研）的匹配依据')
-    expect(content).toContain('贡献')
+    expect(content).toContain('按影响从大到小排列')
+    expect(content).toContain('你的位置 82')
+    expect(content).toContain('这条路径偏好的位置是 85')
+    expect(content).not.toContain('权重')
   })
 
-  it('硬性不适用导致分项为空时给出说明，不留下空段', () => {
+  it('可适用但没有定义权重时，文案不说成「硬性不适用」（回退成因要对得上）', () => {
+    const noWeights = {
+      ...knowledge,
+      result: { ...result, paths: [{ ...result.paths[0]!, contributions: [] }] },
+    }
+    const content = buildSystemContent(noWeights)
+    expect(content).toContain('没有定义权重')
+    expect(content).not.toContain('硬性不适用')
+  })
+
+  it('硬性不适用导致分项为空时，文案指向真正的成因', () => {
     const inapplicable = {
       ...knowledge,
       result: {
         ...result,
-        paths: [{ ...result.paths[0]!, contributions: [] }],
+        paths: [{
+          ...result.paths[0]!,
+          contributions: [],
+          eligibility: { applicable: false, hardFailures: [], softWarnings: [] },
+        }],
       },
     }
-    expect(buildSystemContent(inapplicable)).toContain('没有可用的分项依据')
+    expect(buildSystemContent(inapplicable)).toContain('硬性不适用')
   })
 
   it('带上画像软归属百分比', () => {

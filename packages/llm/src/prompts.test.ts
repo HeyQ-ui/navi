@@ -30,6 +30,12 @@ describe('提示词 · 共通部分（设计文档 §8.1）', () => {
       const text = prompt(name)
       expect(text).toContain('构成要素')
     })
+
+    it(`${name}.md 禁止解释计算机制与报出算法系数`, () => {
+      const text = prompt(name)
+      expect(text).toContain('不要解释计算机制')
+      expect(text).toContain('不要报出权重')
+    })
   }
 })
 

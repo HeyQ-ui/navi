@@ -40,30 +40,40 @@ function formatPaths(slice: KnowledgeSlice): string {
 /**
  * 本路径的分项贡献（设计文档 §8.2）。
  *
- * 这是 core 已经算好的分解，模型只需转述，不需要也不得自己乘权重——传原始权重
- * 加原始作答让模型自行计算，会让它开始做算术并自行下结论，直接违反 §1.3 的
- * 确定性优先。按贡献降序，让最大的影响因素先被看到。
+ * 只给「哪些因素在起作用、你在这几项上的位置」，不给公式——因此**不渲染权重与
+ * 乘积**。权重是算法的系数，把它写进上下文等于把公式的原料递到模型嘴边：实测
+ * 模型会逐字复述「每项先看你当前位置离理想值有多远，再乘上它的权重」，而 §8.2
+ * 要的是构成要素。「哪项更关键」这层信息由排序承载，不需要数字。
+ *
+ * 理想值保留：它描述的是这条路径偏好的位置，属 §9.4「画像对比」本就要展示给
+ * 用户的数据，不是公式系数。
  */
 function formatContributions(slice: KnowledgeSlice): string {
   const current = slice.result.paths.find(p => p.id === slice.pathId)
-  if (current === undefined || current.contributions.length === 0) {
-    return '（这条路径没有可用的分项依据——它当前对你硬性不适用）'
+  if (current === undefined) return '（没有这条路径的诊断结果）'
+  if (current.contributions.length === 0) {
+    // 分项为空有两种成因，文案要对得上：没有定义权重，和硬性不适用。
+    // 一律说成「不适用」会在前一种情形下给用户一句事实错误的话。
+    return current.eligibility.applicable
+      ? '（这条路径没有定义权重，因此没有分项依据）'
+      : '（这条路径当前对你硬性不适用，没有分项依据）'
   }
 
   const names = new Map<string, string>(slice.bundle.indicators.map(i => [i.id, i.name]))
   const pathDef = slice.bundle.paths.find(p => p.id === slice.pathId)
   const ideals = new Map<string, number>((pathDef?.weights ?? []).map(w => [w.indicator, w.ideal]))
 
-  return [...current.contributions]
+  const lines = [...current.contributions]
     .sort((a, b) => b.contribution - a.contribution)
     .map(c => {
       const mine = slice.result.indicators[c.indicator]
       const where = mine?.known ? `你的位置 ${Math.round(mine.score)}` : '你的位置无数据'
       const ideal = ideals.get(c.indicator)
-      const idealText = ideal === undefined ? '' : `，理想值 ${ideal}`
-      return `- ${names.get(c.indicator) ?? c.indicator}：${where}${idealText}，权重 ${c.weight.toFixed(2)}，贡献 ${c.contribution.toFixed(1)}`
+      const idealText = ideal === undefined ? '' : `，这条路径偏好的位置是 ${ideal}`
+      return `- ${names.get(c.indicator) ?? c.indicator}：${where}${idealText}`
     })
-    .join('\n')
+
+  return ['（按影响从大到小排列：越靠前，这个维度对这条路径的判断越关键）', ...lines].join('\n')
 }
 
 /** 画像软归属 */
