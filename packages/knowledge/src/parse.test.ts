@@ -94,3 +94,48 @@ describe('parseContainers', () => {
     expect(blocks[0]!.raw).toBe('正文')
   })
 })
+
+describe('parseBlocks · 容器标记不外泄（设计文档 §6.3 第 4 条）', () => {
+  it('剥掉 ::: 标记，标题进 title，raw 与 html 里都不留标记', () => {
+    const blocks = parseBlocks(`<!-- @block type="myth" -->
+:::myth 排名前 10% 就稳了
+绩点只是入场券。
+:::
+
+<!-- @block type="cost" -->
+:::cost 选择保研，需要放弃
+- 大三暑期无法参加实习
+:::`)
+
+    expect(blocks).toHaveLength(2)
+    expect(blocks[0]!.title).toBe('排名前 10% 就稳了')
+    expect(blocks[0]!.raw).toBe('绩点只是入场券。')
+    expect(blocks[0]!.html).not.toContain(':::')
+    expect(blocks[1]!.title).toBe('选择保研，需要放弃')
+    expect(blocks[1]!.raw).toBe('- 大三暑期无法参加实习')
+    expect(blocks[1]!.html).not.toContain(':::')
+  })
+
+  it('不带标题的容器不设 title', () => {
+    const blocks = parseBlocks('<!-- @block type="cost" -->\n:::cost\n要放弃一些东西\n:::')
+    expect(blocks[0]!.title).toBeUndefined()
+    expect(blocks[0]!.raw).toBe('要放弃一些东西')
+  })
+
+  it('不是容器的正文原样保留（timeline 用的是 markdown 标题）', () => {
+    const blocks = parseBlocks('<!-- @block type="timeline" -->\n## 保研时间线\n- 大三上 · 9月 排名公示')
+    expect(blocks[0]!.title).toBeUndefined()
+    expect(blocks[0]!.raw).toContain('## 保研时间线')
+  })
+
+  it('容器未闭合时仍剥掉标记行，不吞内容', () => {
+    const blocks = parseBlocks('<!-- @block type="myth" -->\n:::myth 没闭合\n正文')
+    expect(blocks[0]!.title).toBe('没闭合')
+    expect(blocks[0]!.raw).toBe('正文')
+  })
+
+  it('容器类型与 @block 不一致时以 @block 为准', () => {
+    const blocks = parseBlocks('<!-- @block type="myth" -->\n:::cost 混了\n正文\n:::')
+    expect(blocks[0]!.type).toBe('myth')
+  })
+})

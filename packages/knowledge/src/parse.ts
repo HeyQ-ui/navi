@@ -34,6 +34,34 @@ export function parseFrontmatter(raw: string): {
   return { data, content: raw.slice(match[0]!.length) }
 }
 
+/**
+ * 剥掉正文里的容器标记，把容器标题提出来（设计文档 §6.3 第 4 条）。
+ *
+ * 逐行过滤而不是「配对剥壳」：未闭合、标题为空、正文没被容器包住，三种写法
+ * 都能得到「raw 里永不含 :::」这一条不变量。写坏了的内容不该把标记漏给下游——
+ * 模型读到 :::myth / :::cost 会把块类型当成可以招募给用户的话题。
+ *
+ * 块类型不从这里取：路径文档的类型来源是 @block 注解，容器只提供标题与正文。
+ * 两处不一致时以 @block 为准，容器类型被忽略。
+ */
+function unwrapContainer(raw: string): { title?: string; body: string } {
+  const lines = raw.split(/\r?\n/)
+  const start = CONTAINER_START.exec(lines[0] ?? '')
+
+  let title: string | undefined
+  if (start) {
+    const parsed = start[2]!.trim()
+    if (parsed !== '') title = parsed
+  }
+
+  const body = lines
+    .filter((line, i) => !(i === 0 && start !== null) && !CONTAINER_END.test(line))
+    .join('\n')
+    .trim()
+
+  return title === undefined ? { body } : { title, body }
+}
+
 export function parseBlocks(content: string): Block[] {
   const markers: Array<{ type: string; index: number; length: number }> = []
 
@@ -57,7 +85,10 @@ export function parseBlocks(content: string): Block[] {
     const end = i + 1 < markers.length ? markers[i + 1]!.index : content.length
     const raw = content.slice(start, end).trim()
     if (raw === '') return
-    blocks.push({ type: marker.type, html: render(raw), raw })
+    const { title, body } = unwrapContainer(raw)
+    const block: Block = { type: marker.type, html: render(body), raw: body }
+    if (title !== undefined) block.title = title
+    blocks.push(block)
   })
 
   return blocks

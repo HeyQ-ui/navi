@@ -78,3 +78,19 @@ describe('buildKnowledge · 诚实边界', () => {
     expect(blocks.every(b => !b.raw.includes(':::'))).toBe(true)
   })
 })
+
+describe('buildKnowledge · 路径文档的标记不外泄（设计文档 §6.3 第 4 条）', () => {
+  it('真实路径文档的块里不含字面 :::', () => {
+    const all = Object.values(buildKnowledge().blocks).flat()
+    expect(all.length).toBeGreaterThan(0)
+    expect(all.filter(b => b.raw.includes(':::') || b.html.includes(':::'))).toEqual([])
+  })
+
+  it('真实路径文档的 myth / cost 块带上了容器标题', () => {
+    const blocks = buildKnowledge().blocks['same-discipline-baoyan']!
+    const myth = blocks.find(b => b.type === 'myth')!
+    const cost = blocks.find(b => b.type === 'cost')!
+    expect(myth.title).toBe('排名前 10% 就稳了')
+    expect(cost.title).toBe('选择保研，需要放弃')
+  })
+})
