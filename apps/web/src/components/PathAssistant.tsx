@@ -60,7 +60,7 @@ export function PathAssistant({ assessmentId, pathId, interpretation }: Props) {
     // 对话是账号级的：换路径、换测评、下次登录都读同一条流，所以每次挂载都重新拉。
     // 拉失败不阻断追问——用户照样能问，只是看不到上文。
     let cancelled = false
-    void fetchChatHistory()
+    void fetchChatHistory(assessmentId)
       .then(history => { if (!cancelled) setMessages(history) })
       .catch(() => undefined)
     return () => { cancelled = true }
@@ -81,7 +81,7 @@ export function PathAssistant({ assessmentId, pathId, interpretation }: Props) {
 
       <h2 className="mb-2 mt-6 text-lg font-semibold">追问</h2>
       <p className="mb-2 text-sm text-gray-500">
-        你们之前的对话都在这里，换路径、换一次测评也会接着上文。
+        最近的对话都在这里。换路径、换一次测评都会接着上文。
       </p>
       <ul className="mb-3 space-y-2">
         {messages.map(message => (

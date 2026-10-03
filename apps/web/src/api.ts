@@ -129,9 +129,16 @@ export interface ChatMessage {
   parts: Array<{ type: 'text'; text: string }>
 }
 
-/** 账号级对话历史。服务端按来源过滤，前端只是显示者 */
-export async function fetchChatHistory(): Promise<ChatMessage[]> {
-  const res = await fetch('/api/chat/history')
+/**
+ * 账号级对话历史。服务端按来源过滤，前端只是显示者。
+ *
+ * `assessmentId` 是当前正在看的那条记录——**必须带上**，否则服务端按「不带锚点」
+ * 处理、只返回 self 的轮次，而 /api/chat 的上下文是按带锚点过滤的。两边口径不一致
+ * 就会出现「模型接着刚才聊的往下说，而屏幕上那段对话从未出现过」。
+ */
+export async function fetchChatHistory(assessmentId?: string): Promise<ChatMessage[]> {
+  const query = assessmentId === undefined ? '' : `?assessmentId=${encodeURIComponent(assessmentId)}`
+  const res = await fetch(`/api/chat/history${query}`)
   const body = (await jsonOrThrow(res, '获取对话历史')) as {
     turns: Array<{ id: string; role: 'user' | 'assistant'; content: string }>
   }

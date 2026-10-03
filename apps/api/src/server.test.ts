@@ -375,6 +375,69 @@ describe('POST /api/interpret', () => {
     expect(JSON.stringify(model.doStreamCalls[0]!.prompt)).not.toContain('## 历次自我测评')
   })
 
+  it('在「测测别人」的记录上，不带账号主人自己的自我测评（混用方向反了）', async () => {
+    const model = mockModel('解读正文')
+    const store = openStore(':memory:')
+    const { app, cookie } = await authedApp(bundle, { model, store })
+
+    // 先测自己（留下 self 历史），再替别人测
+    await diagnoseOnce(app, cookie)
+    const theirs = await diagnoseOnce(app, cookie, {
+      answers: okAnswers, grade: 'freshman', source: 'other',
+    })
+
+    const res = await post(app, '/api/interpret',
+      { assessmentId: theirs, pathId: 'same-discipline-baoyan' }, cookie)
+    await res.text()
+
+    // 这段解读讲的是**被测量的那个人**，而它只有这一条记录。带上账号主人的历史，
+    // 模型就会写「跟你上次比…」——拿你的画像解释别人（§4.2 第 4 条，方向反了）
+    expect(JSON.stringify(model.doStreamCalls[0]!.prompt)).not.toContain('## 历次自我测评')
+  })
+
+  it('历史只含比当次更早的记录，不含更晚的', async () => {
+    const model = mockModel('解读正文')
+    const store = openStore(':memory:')
+    const { app, cookie } = await authedApp(bundle, { model, store })
+
+    const first = await diagnoseOnce(app, cookie)
+    const second = await diagnoseOnce(app, cookie)
+
+    // 看第二条：第一条更早，应当出现
+    await (await post(app, '/api/interpret',
+      { assessmentId: second, pathId: 'same-discipline-baoyan' }, cookie)).text()
+    expect(JSON.stringify(model.doStreamCalls[0]!.prompt)).toContain('## 历次自我测评')
+
+    // 看第一条：第二条更晚，不该出现——否则「你的变化」方向会讲反
+    await (await post(app, '/api/interpret',
+      { assessmentId: first, pathId: 'same-discipline-baoyan' }, cookie)).text()
+    expect(JSON.stringify(model.doStreamCalls[1]!.prompt)).not.toContain('## 历次自我测评')
+  })
+
+  it('在「测测别人」的记录上追问，上下文不含账号主人自己的对话轮次', async () => {
+    const model = mockModel('回答')
+    const store = openStore(':memory:')
+    const { app, cookie } = await authedApp(bundle, { model, store })
+
+    const mine = await diagnoseOnce(app, cookie)
+    await (await post(app, '/api/chat', {
+      assessmentId: mine, pathId: 'same-discipline-baoyan', question: '关于我自己的问题',
+    }, cookie)).text()
+    await vi.waitFor(() => expect(model.doStreamCalls.length).toBe(1))
+
+    const theirs = await diagnoseOnce(app, cookie, {
+      answers: okAnswers, grade: 'freshman', source: 'other',
+    })
+    const res = await post(app, '/api/chat', {
+      assessmentId: theirs, pathId: 'same-discipline-baoyan', question: '关于朋友的问题',
+    }, cookie)
+    await res.text()
+
+    const prompt = JSON.stringify(model.doStreamCalls[1]!.prompt)
+    expect(prompt).toContain('关于朋友的问题')
+    expect(prompt).not.toContain('关于我自己的问题')
+  })
+
   it('测测别人的记录不进历次自我测评（来源过滤）', async () => {
     const model = mockModel('解读正文')
     const store = openStore(':memory:')
@@ -528,7 +591,7 @@ describe('POST /api/chat · 对话落库与上下文（专项 §11.3、§11.4）
     await res.text()
 
     await vi.waitFor(() => {
-      const turns = store.recentTurns(userId, assessmentId, 20)
+      const turns = store.recentTurns(userId, { id: assessmentId, source: 'self' }, 20)
       expect(turns.map(t => t.content)).toEqual(['问题正文', '回答正文'])
     })
   })
@@ -556,7 +619,7 @@ describe('POST /api/chat · 对话落库与上下文（专项 §11.3、§11.4）
     await res.text().catch(() => undefined)
 
     await new Promise(resolve => setTimeout(resolve, 100))
-    expect(store.recentTurns(userId, assessmentId, 20)).toEqual([])
+    expect(store.recentTurns(userId, { id: assessmentId, source: 'self' }, 20)).toEqual([])
   })
 
   it('第二轮追问带上第一轮的回答（账号级流是连续的）', async () => {
@@ -626,13 +689,44 @@ describe('GET /api/chat/history', () => {
       assessmentId, pathId: 'same-discipline-baoyan', question: '问题',
     }, cookie)).text()
 
-    await vi.waitFor(() => expect(store.recentTurns(userId, assessmentId, 20)).toHaveLength(2))
+    await vi.waitFor(() => expect(store.recentTurns(userId, { id: assessmentId, source: 'self' }, 20)).toHaveLength(2))
 
     const res = await app.request('/api/chat/history', { headers: { cookie } })
     expect(res.status).toBe(200)
     const body = (await res.json()) as { turns: Array<{ role: string; content: string }> }
     expect(body.turns.map(t => t.role)).toEqual(['user', 'assistant'])
     expect(body.turns[0]!.content).toBe('问题')
+  })
+
+  it('带 assessmentId 时返回那条记录自己的轮次（含 other 的）', async () => {
+    const store = openStore(':memory:')
+    const { app, cookie, userId } = await authedApp(bundle, { model: mockModel('回答'), store })
+    const mine = await diagnoseOnce(app, cookie)
+    await (await post(app, '/api/chat', {
+      assessmentId: mine, pathId: 'same-discipline-baoyan', question: '我自己的问题',
+    }, cookie)).text()
+
+    const theirs = await diagnoseOnce(app, cookie, {
+      answers: okAnswers, grade: 'freshman', source: 'other',
+    })
+    await (await post(app, '/api/chat', {
+      assessmentId: theirs, pathId: 'same-discipline-baoyan', question: '朋友的问题',
+    }, cookie)).text()
+    // 等两轮都写完：锚点用 other 那条，它只含自己的轮次
+    await vi.waitFor(() => expect(
+      store.recentTurns(userId, { id: theirs, source: 'other' }, 20),
+    ).toHaveLength(2))
+
+    // 不带锚点：只看得到自己那条
+    const plain = await app.request('/api/chat/history', { headers: { cookie } })
+    const plainBody = (await plain.json()) as { turns: Array<{ content: string }> }
+    expect(plainBody.turns.map(t => t.content)).toEqual(['我自己的问题', '回答'])
+
+    // 带 other 记录的锚点：那条记录自己的轮次也在——界面与模型看到的是同一份
+    const anchored = await app.request(`/api/chat/history?assessmentId=${theirs}`,
+      { headers: { cookie } })
+    const anchoredBody = (await anchored.json()) as { turns: Array<{ content: string }> }
+    expect(anchoredBody.turns.map(t => t.content)).toEqual(['朋友的问题', '回答'])
   })
 
   it('不带会话 cookie 返回 401', async () => {

@@ -184,7 +184,7 @@ describe('messages（账号级对话流）', () => {
       userText: '保研和考研怎么选？', assistantText: '两者的时间窗不同。',
     })
 
-    const turns = store.recentTurns(userId, self, 20)
+    const turns = store.recentTurns(userId, { id: self, source: 'self' }, 20)
     expect(turns.map(t => t.role)).toEqual(['user', 'assistant'])
     expect(turns[0]!.content).toBe('保研和考研怎么选？')
     expect(turns[1]!.content).toBe('两者的时间窗不同。')
@@ -202,7 +202,7 @@ describe('messages（账号级对话流）', () => {
       userText: '第二问', assistantText: '第二答',
     })
 
-    expect(store.recentTurns(userId, self, 20).map(t => t.content))
+    expect(store.recentTurns(userId, { id: self, source: 'self' }, 20).map(t => t.content))
       .toEqual(['第一问', '第一答', '第二问', '第二答'])
   })
 
@@ -218,12 +218,12 @@ describe('messages（账号级对话流）', () => {
     })
 
     // 查看自己的记录：别人的轮次不出现
-    expect(store.recentTurns(userId, self, 20).map(t => t.content))
+    expect(store.recentTurns(userId, { id: self, source: 'self' }, 20).map(t => t.content))
       .toEqual(['关于我自己', '答我自己'])
 
-    // 查看那条 other 记录：它自己的轮次回来，self 的也在（账号级流）
-    expect(store.recentTurns(userId, other, 20).map(t => t.content))
-      .toEqual(['关于我自己', '答我自己', '关于我朋友', '答我朋友'])
+    // 查看那条 other 记录：**只**要它自己的轮次。self 的属于另一个人，不混进来
+    expect(store.recentTurns(userId, { id: other, source: 'other' }, 20).map(t => t.content))
+      .toEqual(['关于我朋友', '答我朋友'])
   })
 
   it('只看得到本人的对话', () => {
@@ -245,7 +245,7 @@ describe('messages（账号级对话流）', () => {
       })
     }
     // 5 轮 = 10 条消息，取最近 4 条即最后两轮
-    const turns = store.recentTurns(userId, self, 4)
+    const turns = store.recentTurns(userId, { id: self, source: 'self' }, 4)
     expect(turns.map(t => t.content)).toEqual(['第4问', '第4答', '第5问', '第5答'])
     // 更早的确实被截掉了，而不是「全都要」
     expect(turns.map(t => t.content)).not.toContain('第1问')
@@ -262,5 +262,22 @@ describe('messages（账号级对话流）', () => {
       userText: '别人', assistantText: '答别人',
     })
     expect(store.recentTurns(userId, null, 20).map(t => t.content)).toEqual(['自己', '答自己'])
+  })
+
+  it('当次是 other 时，账号主人的 self 轮次也不进上下文', () => {
+    const { userId, self, other } = seed(store)
+    store.appendTurn({
+      userId, assessmentId: self, pathId: null, source: 'self',
+      userText: '关于我自己', assistantText: '答我自己',
+    })
+    store.appendTurn({
+      userId, assessmentId: other, pathId: null, source: 'other',
+      userText: '关于我朋友', assistantText: '答我朋友',
+    })
+
+    // 查看那条 other 记录：**只**要它自己的轮次。账号主人的自我对话属于另一个人，
+    // 混进来就是「拿你的画像解释别人」（专项 §11.4）
+    expect(store.recentTurns(userId, { id: other, source: 'other' }, 20).map(t => t.content))
+      .toEqual(['关于我朋友', '答我朋友'])
   })
 })

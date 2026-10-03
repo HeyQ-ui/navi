@@ -543,7 +543,15 @@ git commit -m "feat(llm): 上下文支持历次自我测评与对话轮次两段
 
 - [ ] **Step 1: 写失败测试**
 
-在 `apps/api/src/server.test.ts` 的 `POST /api/chat` describe 内，**替换**原有的四条用例（它们的入参形状已经变了），改为：
+在 `apps/api/src/server.test.ts` 的 `POST /api/chat` describe 内，**删掉原有的全部五条用例**并用下面这组替代：
+
+原五条是「返回流式回答」「把学生的问题真正送进模型」「只保留最近 20 条消息」
+「追问内容超过字符上限」「messages 为空」——入参形状全变了，前四条需要重写，
+**第五条「只保留最近 20 条消息」直接删除**：客户端不再上传历史，「最近 N 条」这条
+约束移到了服务端的 `recentTurns(userId, record.id, MAX_CHAT_MESSAGES)`，由 Task 1 的
+「limit 取最近 N 轮」用例覆盖。
+
+替代用例：
 
 ```ts
   it('只收本轮问题，返回流式回答', async () => {

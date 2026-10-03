@@ -61,15 +61,26 @@ function persistInterpretation(stream: StreamResult, store: Store, recordId: str
 }
 
 /**
- * 该用户最近几次自我测评的摘要（**不含当次**），时间倒序。
+ * 当次记录之前的几次自我测评摘要，时间倒序（专项 §7、§11.4）。两种情况返回空：
  *
- * 来源过滤在 `listAssessments` 上做一半、这里做另一半：`listAssessments` 返回本人
- * 全部记录，这里只留 `source='self'` 并把当次排除掉——当次已单独进上下文，
- * 重复列会让「你的变化」段算错一次（专项 §7、§11.4）。
+ * 1. **当次是「测测别人」**：那段解读讲的是被测量的**那个人**，而那个人只有这一条
+ *    记录。带上账号主人自己的历史，模型就会写「跟你上次比…」——拿你的画像解释别人，
+ *    是 §4.2 第 4 条要防的混用，方向反了。而这段解读会落库、永不重算。
+ * 2. **当次是最早的一条**：没有「之前」可比，解读的「你的变化」段本就该照实说。
+ *
+ * 「更早」用 `listAssessments` 的既有顺序判定（created_at DESC, rowid DESC），
+ * 取当前记录**之后**的那些——**不比较时间戳**：同一毫秒内创建的两条时间戳相同，
+ * 用 `<` 会把它们全排除掉，第二条的历史会莫名变空。
  */
-function selfHistory(store: Store, userId: string, currentId: string): HistoryAssessment[] {
-  return store.listAssessments(userId)
-    .filter(row => row.source === 'self' && row.id !== currentId)
+function selfHistory(
+  store: Store, userId: string, current: AssessmentRecord,
+): HistoryAssessment[] {
+  if (current.source !== 'self') return []
+  const rows = store.listAssessments(userId)
+  const at = rows.findIndex(row => row.id === current.id)
+  if (at === -1) return []
+  return rows.slice(at + 1)
+    .filter(row => row.source === 'self')
     .slice(0, MAX_HISTORY_ASSESSMENTS)
     .map(row => ({ createdAt: row.createdAt, result: row.result }))
 }
@@ -283,7 +294,8 @@ export function createApp(bundle: KnowledgeBundle, options: AppOptions = {}): Ho
     // 解读的上下文与 chat 对齐（取值方式完全一致）：「你的变化」段要靠 these
     const userId = sessionUser(c).id
     const interpretStore = getStore()
-    const conversation = interpretStore.recentTurns(userId, record.id, MAX_CHAT_MESSAGES)
+    const conversation = interpretStore
+      .recentTurns(userId, { id: record.id, source: record.source }, MAX_CHAT_MESSAGES)
       .map(turn => ({ role: turn.role, content: turn.content }))
 
     try {
@@ -294,7 +306,7 @@ export function createApp(bundle: KnowledgeBundle, options: AppOptions = {}): Ho
           bundle: scoped,
           // result 用落库的快照而非重算：页面显示的就是它，重算会让解释与显示不一致
           result: record.result,
-          history: selfHistory(interpretStore, userId, record.id),
+          history: selfHistory(interpretStore, userId, record),
           conversation,
         },
         options,
@@ -337,7 +349,8 @@ export function createApp(bundle: KnowledgeBundle, options: AppOptions = {}): Ho
 
     const userId = sessionUser(c).id
     const store = getStore()
-    const conversation = store.recentTurns(userId, record.id, MAX_CHAT_MESSAGES)
+    const conversation = store
+      .recentTurns(userId, { id: record.id, source: record.source }, MAX_CHAT_MESSAGES)
       .map(turn => ({ role: turn.role, content: turn.content }))
 
     const scoped: KnowledgeBundle = {
@@ -349,7 +362,7 @@ export function createApp(bundle: KnowledgeBundle, options: AppOptions = {}): Ho
         pathId,
         bundle: scoped,
         result: record.result,
-        history: selfHistory(store, userId, record.id),
+        history: selfHistory(store, userId, record),
         conversation,
         messages: [{ role: 'user', content: question }],
       }, options)
@@ -364,9 +377,20 @@ export function createApp(bundle: KnowledgeBundle, options: AppOptions = {}): Ho
     }
   })
 
-  /** 账号级对话历史：前端首次渲染时用它 seed，之后每轮只发新问题（专项 §11.3） */
+  /**
+   * 账号级对话历史：前端首次渲染时用它 seed，之后每轮只发新问题（专项 §11.3）。
+   *
+   * 可带 `?assessmentId=` 指明当前在看哪条记录——**这必须与 /api/chat 的过滤口径
+   * 一致**，否则会出现「模型接着刚才聊的往下说，而用户屏幕上那段对话从未出现过」。
+   * 记录不属于本人时按不带锚点处理，不泄露他人记录的存在性。
+   */
   app.get('/api/chat/history', requireSession(auth), c => {
-    const turns = getStore().recentTurns(sessionUser(c).id, null, MAX_CHAT_MESSAGES)
+    const userId = sessionUser(c).id
+    const asked = c.req.query('assessmentId')
+    const record = asked === undefined ? null : getStore().findAssessment(asked, userId)
+    const anchor = record === null ? null : { id: record.id, source: record.source }
+
+    const turns = getStore().recentTurns(userId, anchor, MAX_CHAT_MESSAGES)
     return c.json({
       turns: turns.map(t => ({
         id: t.id, role: t.role, content: t.content, createdAt: t.createdAt,

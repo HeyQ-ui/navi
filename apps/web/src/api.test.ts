@@ -40,10 +40,12 @@ describe('fetchChatHistory', () => {
       ],
     }), { status: 200 }))
 
-    const messages = await fetchChatHistory()
+    const messages = await fetchChatHistory('a1')
     expect(messages).toHaveLength(2)
     expect(messages[0]!.role).toBe('user')
     expect(messages[0]!.parts).toEqual([{ type: 'text', text: '保研和考研怎么选？' }])
+    // 必须把锚点带上：不带的话服务端只回 self 的轮次，与模型上下文口径不一致
+    expect(vi.mocked(globalThis.fetch).mock.calls[0]![0]).toBe('/api/chat/history?assessmentId=a1')
   })
 })
 

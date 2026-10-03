@@ -170,11 +170,18 @@ export interface Store {
   /**
    * 该账号最近的对话轮次，**按时间正序**返回（便于直接拼进上下文）。
    *
-   * 来源过滤见 spec §7 / §11.4：`source='self'` 的一律纳入；`source='other'` 的
-   * 只有锚点是 `currentAssessmentId` 时才纳入——这样在「测测别人」的页面上能连续
-   * 追问，回到自己的页面时别人的轮次不混进来。
+   * 过滤跟着**当次记录的来源**走（spec §7 / §11.4）：
+   * - 当次是 `self`（或不传）：只纳入 `self` 的轮次
+   * - 当次是 `other`：**只**纳入锚点是当次记录的轮次
+   *
+   * 第二条是要害：账号主人的自我对话属于**另一个人**，把它塞进朋友那条记录的
+   * 上下文里就是「拿你的画像解释别人」——§4.2 第 4 条要防的混用，方向反了。
    */
-  recentTurns(userId: string, currentAssessmentId: string | null, limit: number): ChatTurn[]
+  recentTurns(
+    userId: string,
+    current: { id: string; source: Source } | null,
+    limit: number,
+  ): ChatTurn[]
   close(): void
 }
 
@@ -343,15 +350,20 @@ export function openStore(file: string): Store {
         input.source, 'assistant', input.assistantText, now)
     },
 
-    recentTurns(userId, currentAssessmentId, limit) {
+    recentTurns(userId, current, limit) {
       // 先按时间倒序取最近 N 条，再翻正——LIMIT 必须作用在倒序上才对
-      const rows = db.prepare(
-        `SELECT * FROM messages
-         WHERE user_id = ?
-           AND (source = 'self' OR assessment_id = ?)
-         ORDER BY created_at DESC, rowid DESC
-         LIMIT ?`,
-      ).all(userId, currentAssessmentId, limit) as unknown as MessageDbRow[]
+      const otherOnly = current !== null && current.source === 'other'
+      const rows = (otherOnly
+        ? db.prepare(
+            `SELECT * FROM messages
+             WHERE user_id = ? AND assessment_id = ?
+             ORDER BY created_at DESC, rowid DESC LIMIT ?`,
+          ).all(userId, current.id, limit)
+        : db.prepare(
+            `SELECT * FROM messages
+             WHERE user_id = ? AND source = 'self'
+             ORDER BY created_at DESC, rowid DESC LIMIT ?`,
+          ).all(userId, limit)) as unknown as MessageDbRow[]
 
       return rows.reverse().map(toChatTurn)
     },
