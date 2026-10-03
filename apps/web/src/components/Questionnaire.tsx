@@ -9,21 +9,33 @@ interface Props {
 const GROUP_SIZE = 5
 const STORAGE_KEY = 'navi.questionnaire.answers'
 
-/** 读取暂存的答案。任何异常都退化为空对象——暂存失败不应阻断答题 */
-function loadStoredAnswers(): Record<string, number> {
+/**
+ * 读取暂存的答案。任何异常都退化为空对象——暂存失败不应阻断答题。
+ *
+ * 只保留当前题面里存在的题目：题面改过之后（删题、换年级），暂存里会留着已经
+ * 不存在的题目 id。它们不只是多余的键——会让「已完成」计数虚高、提交按钮在还有
+ * 题没答时就亮起来，而提交上去的整份作答会被 /api/diagnose 按未知 id 直接拒成 400。
+ * 过滤后的结果会被写回，「已完成」的数字因此自己就修好了。
+ */
+function loadStoredAnswers(questions: Question[]): Record<string, number> {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (raw === null) return {}
     const parsed: unknown = JSON.parse(raw)
     if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) return {}
-    return parsed as Record<string, number>
+    const knownIds = new Set(questions.map(q => q.id))
+    return Object.fromEntries(
+      Object.entries(parsed as Record<string, number>).filter(([id]) => knownIds.has(id)),
+    )
   } catch {
     return {}
   }
 }
 
 export function Questionnaire({ questions, onSubmit }: Props) {
-  const [answers, setAnswers] = useState<Record<string, number>>(loadStoredAnswers)
+  const [answers, setAnswers] = useState<Record<string, number>>(
+    () => loadStoredAnswers(questions),
+  )
   const [page, setPage] = useState(0)
 
   useEffect(() => {

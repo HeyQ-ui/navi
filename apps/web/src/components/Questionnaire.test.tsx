@@ -56,6 +56,23 @@ describe('Questionnaire', () => {
     expect(screen.getByText(/1\s*\/\s*2/)).toBeInTheDocument()
   })
 
+  it('暂存里已不存在的题目 id 会被丢弃（删过题的客户端不该带着旧作答提交）', async () => {
+    localStorage.setItem(
+      'navi.questionnaire.answers',
+      JSON.stringify({ 'gone-1': 0, q1: 0 }),
+    )
+    const onSubmit = vi.fn()
+    render(<Questionnaire questions={questions} onSubmit={onSubmit} />)
+
+    // gone-1 不计入「已完成」，否则提交按钮会在第二题还没答时就亮起来
+    expect(screen.getByText(/1\s*\/\s*2/)).toBeInTheDocument()
+
+    await userEvent.click(screen.getAllByRole('radio')[5]!)
+    await userEvent.click(screen.getByRole('button', { name: /提交/ }))
+
+    expect(onSubmit).toHaveBeenCalledWith({ q1: 0, q2: 0 })
+  })
+
   it('localStorage 内容损坏时不影响渲染，按空白问卷处理', () => {
     localStorage.setItem('navi.questionnaire.answers', '{不是合法 JSON')
     expect(() => render(<Questionnaire questions={questions} onSubmit={() => {}} />)).not.toThrow()
