@@ -344,6 +344,53 @@ describe('POST /api/interpret', () => {
     }
   })
 
+  it('解读的上下文里带上历次自我测评（「你的变化」段要有东西可讲）', async () => {
+    const model = mockModel('解读正文')
+    const store = openStore(':memory:')
+    const { app, cookie } = await authedApp(bundle, { model, store })
+
+    // 先做一次，让第二次有历史可比
+    await diagnoseOnce(app, cookie)
+    const second = await diagnoseOnce(app, cookie)
+
+    const res = await post(app, '/api/interpret',
+      { assessmentId: second, pathId: 'same-discipline-baoyan' }, cookie)
+    await res.text()
+
+    const prompt = JSON.stringify(model.doStreamCalls[0]!.prompt)
+    // 断言上下文的**段落标题**而不是「历次自我测评」这个短语——后者在提示词正文里
+    // 也有（「你的变化」段的说明提到它），拿它当判据两个方向都会假绿/假红
+    expect(prompt).toContain('## 历次自我测评（最近数次，不含本次）')
+  })
+
+  it('第一次测评时上下文里没有历次段（「你的变化」段得照实说）', async () => {
+    const model = mockModel('解读正文')
+    const { app, cookie } = await authedApp(bundle, { model })
+    const assessmentId = await diagnoseOnce(app, cookie)
+
+    const res = await post(app, '/api/interpret',
+      { assessmentId, pathId: 'same-discipline-baoyan' }, cookie)
+    await res.text()
+
+    expect(JSON.stringify(model.doStreamCalls[0]!.prompt)).not.toContain('## 历次自我测评')
+  })
+
+  it('测测别人的记录不进历次自我测评（来源过滤）', async () => {
+    const model = mockModel('解读正文')
+    const store = openStore(':memory:')
+    const { app, cookie } = await authedApp(bundle, { model, store })
+
+    // 先替别人测一次，再测自己
+    await post(app, '/api/diagnose', { answers: okAnswers, grade: 'freshman', source: 'other' }, cookie)
+    const mine = await diagnoseOnce(app, cookie)
+
+    const res = await post(app, '/api/interpret',
+      { assessmentId: mine, pathId: 'same-discipline-baoyan' }, cookie)
+    await res.text()
+
+    expect(JSON.stringify(model.doStreamCalls[0]!.prompt)).not.toContain('## 历次自我测评')
+  })
+
   it('流正常结束后，解读全文写入该记录', async () => {
     const store = openStore(':memory:')
     const { app, cookie, userId } = await authedApp(bundle, {

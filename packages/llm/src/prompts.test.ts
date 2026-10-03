@@ -53,11 +53,26 @@ describe('提示词 · 仅追问适用的两条（设计文档 §8.1 适用列�
   })
 })
 
-describe('提示词 · 解读的输出结构（设计文档 §8.2）', () => {
-  it('三段式且第二段对应「主推荐路径」', () => {
+describe('提示词 · 解读的输出结构（设计文档 §8.2、专项 §11.5）', () => {
+  it('四段式，第三段对应「你的变化」', () => {
     const text = prompt('interpret')
     expect(text).toContain('你现在的位置')
     expect(text).toContain('为什么推荐这条路径')
+    expect(text).toContain('你的变化')
     expect(text).toContain('接下来关注什么')
+  })
+
+  it('说明首次测评时「你的变化」段怎么写（不许编一份上次出来）', () => {
+    expect(prompt('interpret')).toContain('第一次测评')
+  })
+
+  it('要求除「你的变化」段外不要主动做跨次对比', () => {
+    expect(prompt('interpret')).toContain('不要主动做跨次对比')
+  })
+})
+
+describe('提示词 · 追问的对比约束（专项 §11.6）', () => {
+  it('用户没明确提出对比时不要主动对比', () => {
+    expect(prompt('chat')).toContain('不要主动对比')
   })
 })

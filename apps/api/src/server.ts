@@ -280,10 +280,23 @@ export function createApp(bundle: KnowledgeBundle, options: AppOptions = {}): Ho
     const scoped: KnowledgeBundle = {
       ...bundle, questions: scopeQuestions(bundle.questions, parseGrade(record.grade)),
     }
+    // 解读的上下文与 chat 对齐（取值方式完全一致）：「你的变化」段要靠 these
+    const userId = sessionUser(c).id
+    const interpretStore = getStore()
+    const conversation = interpretStore.recentTurns(userId, record.id, MAX_CHAT_MESSAGES)
+      .map(turn => ({ role: turn.role, content: turn.content }))
+
     try {
       const stream = streamInterpret(
-        // result 用落库的快照而非重算：页面显示的就是它，重算会让解释与显示不一致
-        { answers: record.answers, pathId, bundle: scoped, result: record.result },
+        {
+          answers: record.answers,
+          pathId,
+          bundle: scoped,
+          // result 用落库的快照而非重算：页面显示的就是它，重算会让解释与显示不一致
+          result: record.result,
+          history: selfHistory(interpretStore, userId, record.id),
+          conversation,
+        },
         options,
       )
       const response = stream.toTextStreamResponse()
