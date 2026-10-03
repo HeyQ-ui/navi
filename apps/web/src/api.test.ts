@@ -64,6 +64,21 @@ describe('buildChatBody', () => {
     expect(body).toEqual({ assessmentId: 'a1', pathId: 'p1', question: '第二轮' })
   })
 
+  it('最后一条不是用户消息时，回退到最近的那条用户消息', () => {
+    // 当前 UI 路径下末尾总是 user（sendMessage 先 push 用户消息），但这是隐式约定。
+    // 不认 role 的话，任何「末尾是 assistant」的调用都会把回答当成新问题发上去。
+    const body = buildChatBody({
+      assessmentId: 'a1',
+      pathId: 'p1',
+      messages: [
+        { id: 'm1', role: 'user', parts: [{ type: 'text', text: '我要问的' }] },
+        { id: 'm2', role: 'assistant', parts: [{ type: 'text', text: '上一条回答' }] },
+      ],
+    })
+
+    expect(body.question).toBe('我要问的')
+  })
+
   it('把多段 part 拼成一段文本', () => {
     const body = buildChatBody({
       assessmentId: 'a1',

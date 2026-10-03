@@ -38,26 +38,51 @@ function parseSource(value: unknown): Source | null {
 type StreamResult = ReturnType<typeof streamInterpret>
 
 /**
- * 流正常结束后把解读全文补写回记录（spec §4.7）。
+ * 只在流**正常结束**后写盘。闸门是必须的，不是防御性编程：
+ * `.text` 在流中途出错时会**静默 resolve 出已累积的半截文本**，不抛错
+ * （packages/llm/src/index.test.ts 钉着这个缺陷）。半截内容一旦落库，就成了后续
+ * **所有**上下文的既定事实——而它会被当成「已完成」永不重算。
  *
- * 必须在 finishReason 上设闸门：`.text` 在流中途出错时会**静默 resolve 出已累积的
- * 半截文本**，不抛错（packages/llm/src/index.test.ts:126 记录了这个缺陷）。
- * 直接 `await .text` 再写库会把残缺解读存进去，而它会被当成「已生成」从此不再重算
- * ——这是最坏的组合。已实测：正常流 finishReason 为 'stop'，中途出错为 'error'，
- * 且响应体被消费后该 promise 照常 resolve。
+ * 解读与对话共用这一处。两处各写一遍，就是两个将来会被改歪一个的地方，
+ * 而改歪的代价是永久的数据污染。已实测：正常流 finishReason 为 `'stop'`，
+ * 中途出错为 `'error'`，且响应体被消费后该 promise 照常 resolve。
  */
-function persistInterpretation(stream: StreamResult, store: Store, recordId: string): void {
+function afterStream(stream: StreamResult, label: string, write: (text: string) => void): void {
   void (async () => {
     try {
       if (await stream.finishReason !== 'stop') return
       const text = await stream.text
       if (text.trim() === '') return
-      store.setInterpretation(recordId, text)
+      write(text)
     } catch {
       // 写失败只记日志：响应已经开始流向用户，这里不该再抛
-      console.warn(`[api] 解读写入失败：${recordId}`)
+      console.warn(`[api] ${label}写入失败`)
     }
   })()
+}
+
+/** 解读全文补写回记录（spec §4.7）。只写 interpretation 这一个字段 */
+function persistInterpretation(stream: StreamResult, store: Store, recordId: string): void {
+  afterStream(stream, `解读（${recordId}）`, text => store.setInterpretation(recordId, text))
+}
+
+/**
+ * 一轮问答落库（专项 §11.3）。user 与 assistant **两条一起写**：失败的轮次什么都
+ * 不落库，否则上下文会留下「用户问了但没人答」的悬空轮次。
+ */
+function persistTurn(
+  stream: StreamResult,
+  store: Store,
+  ctx: {
+    userId: string
+    assessmentId: string
+    pathId: string
+    source: Source
+    userText: string
+  },
+): void {
+  afterStream(stream, `对话（${ctx.assessmentId}）`,
+    text => store.appendTurn({ ...ctx, assistantText: text }))
 }
 
 /**
@@ -83,38 +108,6 @@ function selfHistory(
     .filter(row => row.source === 'self')
     .slice(0, MAX_HISTORY_ASSESSMENTS)
     .map(row => ({ createdAt: row.createdAt, result: row.result }))
-}
-
-/**
- * 一轮问答落库。与 persistInterpretation 同一个闸门、同一个理由：
- * `.text` 在流中途出错时会**静默 resolve 出已累积的半截文本**
- * （packages/llm/src/index.test.ts 里钉着这个缺陷）。半截回答一旦落库，
- * 就成了后续**所有**上下文的既定事实，比半截解读更毒。
- *
- * user 与 assistant 两条一起写：失败的轮次什么都不落库，否则上下文会留下
- * 「用户问了但没人答」的悬空轮次（专项 §11.3）。
- */
-function persistTurn(
-  stream: StreamResult,
-  store: Store,
-  ctx: {
-    userId: string
-    assessmentId: string
-    pathId: string
-    source: Source
-    userText: string
-  },
-): void {
-  void (async () => {
-    try {
-      if (await stream.finishReason !== 'stop') return
-      const text = await stream.text
-      if (text.trim() === '') return
-      store.appendTurn({ ...ctx, assistantText: text })
-    } catch {
-      console.warn(`[api] 对话写入失败：${ctx.assessmentId}`)
-    }
-  })()
 }
 
 function parseGrade(value: unknown): Grade | undefined {

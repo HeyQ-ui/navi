@@ -158,7 +158,10 @@ export function buildChatBody(input: {
   pathId: string
   messages: ChatMessage[]
 }): { assessmentId: string; pathId: string; question: string } {
-  const last = input.messages[input.messages.length - 1]
+  // 取**最近一条用户消息**，不是「最后一条」：当前 UI 路径下末尾总是 user
+  // （sendMessage 先 push 用户消息再流式回答），但那是隐式约定——一旦末尾是
+  // assistant，按最后一条取就会把上一条回答当成新问题发上去。
+  const last = [...input.messages].reverse().find(m => m.role === 'user')
   const question = (last?.parts ?? [])
     .filter((p): p is { type: 'text'; text: string } => p.type === 'text')
     .map(p => p.text)

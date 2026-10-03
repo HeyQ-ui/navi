@@ -104,9 +104,36 @@ describe('PathAssistant · 账号级对话（专项 §11.3）', () => {
 
     // 断言 setMessages 被灌了历史：mock 的 messages 是静态值，渲染断言在这里
     // 测不到东西——真正要钉的是「历史从服务端来，且换路径时重新拉」
-    await waitFor(() => expect(setMessages).toHaveBeenCalledWith([
+    await waitFor(() => expect(
+      vi.mocked(useChat).mock.results.length + setMessages.mock.calls.length,
+    ).toBeGreaterThan(0))
+
+    // 历史是异步来的，所以要传更新函数而不是直接覆盖——直接覆盖会把
+    // 「历史返回前用户已经发出的那一轮」一起冲掉
+    const updater = setMessages.mock.calls.at(-1)![0] as (prev: unknown[]) => unknown[]
+    expect(typeof updater).toBe('function')
+    expect(updater([])).toEqual([
       { id: 'm1', role: 'user', parts: [{ type: 'text', text: '上一次聊过的问题' }] },
       { id: 'm2', role: 'assistant', parts: [{ type: 'text', text: '上一次的回答' }] },
-    ]))
+    ])
+  })
+
+  it('历史返回时用户已经在聊了：两者都保留，不冲掉用户那一轮', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify({
+      turns: [
+        { id: 'old', role: 'user', content: '更早的问题', createdAt: '2026-01-01T00:00:00.000Z' },
+      ],
+    }), { status: 200 }))
+
+    render(<PathAssistant assessmentId="a1" pathId="p1" />)
+
+    await waitFor(() => expect(setMessages).toHaveBeenCalled())
+    const updater = setMessages.mock.calls.at(-1)![0] as (prev: unknown[]) => unknown[]
+
+    const inFlight = [{ id: 'mine', role: 'user', parts: [{ type: 'text', text: '我刚问的' }] }]
+    expect(updater(inFlight)).toEqual([
+      { id: 'old', role: 'user', parts: [{ type: 'text', text: '更早的问题' }] },
+      { id: 'mine', role: 'user', parts: [{ type: 'text', text: '我刚问的' }] },
+    ])
   })
 })

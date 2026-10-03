@@ -61,7 +61,13 @@ export function PathAssistant({ assessmentId, pathId, interpretation }: Props) {
     // 拉失败不阻断追问——用户照样能问，只是看不到上文。
     let cancelled = false
     void fetchChatHistory(assessmentId)
-      .then(history => { if (!cancelled) setMessages(history) })
+      .then(history => {
+        if (cancelled) return
+        // 用更新函数而不是直接覆盖：历史是异步来的，用户可能在这期间已经问了一轮。
+        // 直接覆盖会把那一轮（以及正在流式的回答）冲掉，而模型那边照样答了——
+        // 用户会看到自己的问题凭空消失。
+        setMessages(prev => (prev.length === 0 ? history : [...history, ...prev]))
+      })
       .catch(() => undefined)
     return () => { cancelled = true }
   }, [assessmentId, setMessages])
