@@ -90,6 +90,15 @@ describe('validateKnowledge', () => {
     expect(warnings.join()).not.toContain('少于要求的')
   })
 
+  it('不计分的资格题不受「必须 5 个选项」约束', () => {
+    const b = bundle()
+    b.questions.push({
+      id: 'elig', indicator: 'academic-interest', text: '？', weight: 0,
+      options: ['a', 'b', 'c', 'd'],
+    })
+    expect(validateKnowledge(b).join()).not.toContain('个选项')
+  })
+
   it('路径权重引用了不存在的指标时给出警告', () => {
     const b = bundle()
     b.paths[0]!.weights[0]!.indicator = 'not-exist'

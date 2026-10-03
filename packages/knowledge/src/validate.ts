@@ -95,8 +95,10 @@ export function validateKnowledge(bundle: KnowledgeBundle): string[] {
       } else if (!indicatorIds.has(question.indicator)) {
         warnings.push(`题目 ${question.id} 引用了不存在的指标 ${question.indicator}`)
       }
-      // 选项数只在走五档位置映射时才必须是 5：显式给了 scores 的题，选项数由它自己定
-      if (question.options.length !== 5) {
+      // 选项数只在走五档位置映射时才必须是 5：显式给了 scores 的题选项数由它自己定，
+      // 不计分的资格题（weight 0）也不走这套映射——它的选项是「有/没有/不清楚」这类
+      // 名义取值，本来就不该凑够五档
+      if (question.weight > 0 && question.options.length !== 5) {
         warnings.push(`题目 ${question.id} 有 ${question.options.length} 个选项，应为 5 个（设计文档 §5.2）`)
       }
       continue
