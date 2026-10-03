@@ -34,11 +34,21 @@ describe('App · 登录门槛（spec §4.3）', () => {
     expect(await screen.findByRole('button', { name: '登录' })).toBeInTheDocument()
   })
 
-  it('会话探测失败时退回登录页并说明原因，而不是静默卡住', async () => {
-    vi.mocked(fetchMe).mockRejectedValue(new Error('503'))
+  it('会话探测失败时退回登录页，并原样显示服务端给的原因', async () => {
+    // 吞掉服务端的文案会把人引向错误的方向：未配置 JWT_SECRET 时它说的是
+    // 「服务端未配置会话密钥」，而一句「无法连接服务端」会让人去查端口和网络
+    vi.mocked(fetchMe).mockRejectedValue(
+      new Error('账号功能暂不可用：服务端未配置会话密钥'),
+    )
     render(<App />)
     expect(await screen.findByRole('button', { name: '登录' })).toBeInTheDocument()
-    expect(screen.getByText(/无法连接服务端/)).toBeInTheDocument()
+    expect(screen.getByText('账号功能暂不可用：服务端未配置会话密钥')).toBeInTheDocument()
+  })
+
+  it('抛出非 Error 时退回一句兜底文案，而不是显示 undefined', async () => {
+    vi.mocked(fetchMe).mockRejectedValue('boom')
+    render(<App />)
+    expect(await screen.findByText('无法连接服务端，请稍后重试')).toBeInTheDocument()
   })
 })
 

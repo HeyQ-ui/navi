@@ -32,6 +32,10 @@ export function App() {
   // 挂载时问一次服务端「我是谁」：已登录的用户不该被推回登录页。
   // 探测失败（服务端 503/500、网络不通）时说明原因再退回登录页——
   // 不接 catch 会产生未处理的 rejection，用户只看到一个没有解释的登录页。
+  //
+  // 必须把服务端给的原因**原样显示**：未配置 JWT_SECRET 时它返回的是
+  // 「账号功能暂不可用：服务端未配置会话密钥」，换成一句泛泛的「无法连接服务端」
+  // 会把操作者引向错误的排查方向（去查端口和网络，而问题其实在 .env）。
   useEffect(() => {
     void fetchMe()
       .then(me => {
@@ -39,7 +43,9 @@ export function App() {
         setUsername(me.username)
         setStage('choosing')
       })
-      .catch(() => setMessage('无法连接服务端，请稍后重试'))
+      .catch((error: unknown) => {
+        setMessage(error instanceof Error ? error.message : '无法连接服务端，请稍后重试')
+      })
   }, [])
 
   async function chooseGrade(value: Grade) {
