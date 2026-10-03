@@ -7,7 +7,13 @@ import { createOpenAI } from '@ai-sdk/openai'
 import { diagnose } from '@navi/core'
 import type { Answers, DiagnosisResult, KnowledgeBundle } from '@navi/core'
 import { buildChatMessages, buildInterpretMessages } from './context.js'
-import type { KnowledgeSlice } from './context.js'
+import type { ChatTurnForContext, HistoryAssessment, KnowledgeSlice } from './context.js'
+
+/**
+ * 上下文的两块扩展数据（历次自我测评、此前对话）由调用方提供——它们来自存储，
+ * 而本包**不认识存储**（AGENTS.md 的模块边界）。这里只把类型转出去给 apps/api 用。
+ */
+export type { ChatTurnForContext, HistoryAssessment } from './context.js'
 
 const PROMPT_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', 'prompts')
 
@@ -44,9 +50,21 @@ export function createDeepSeekModel(env: NodeJS.ProcessEnv = process.env): Langu
  * 得出与页面不同的匹配度——页面写着 55、模型却解释 62。
  */
 function sliceOf(
-  answers: Answers, bundle: KnowledgeBundle, pathId: string, result?: DiagnosisResult,
+  answers: Answers,
+  bundle: KnowledgeBundle,
+  pathId: string,
+  result?: DiagnosisResult,
+  history?: HistoryAssessment[],
+  conversation?: ChatTurnForContext[],
 ): KnowledgeSlice {
-  return { bundle, result: result ?? diagnose(answers, bundle), pathId, answers }
+  return {
+    bundle,
+    result: result ?? diagnose(answers, bundle),
+    pathId,
+    answers,
+    history,
+    conversation,
+  }
 }
 
 /**
@@ -66,10 +84,20 @@ function splitSystem(messages: ModelMessage[]): {
 type StreamResult = ReturnType<typeof streamText>
 
 export function streamInterpret(
-  input: { answers: Answers; pathId: string; bundle: KnowledgeBundle; result?: DiagnosisResult },
+  input: {
+    answers: Answers
+    pathId: string
+    bundle: KnowledgeBundle
+    result?: DiagnosisResult
+    history?: HistoryAssessment[]
+    conversation?: ChatTurnForContext[]
+  },
   options: StreamOptions = {},
 ): StreamResult {
-  const knowledge = sliceOf(input.answers, input.bundle, input.pathId, input.result)
+  const knowledge = sliceOf(
+    input.answers, input.bundle, input.pathId, input.result,
+    input.history, input.conversation,
+  )
   const { instructions, turns } = splitSystem(
     buildInterpretMessages({ knowledge, systemPrompt: loadPrompt('interpret') }),
   )
@@ -87,10 +115,15 @@ export function streamChat(
     messages: ModelMessage[]
     bundle: KnowledgeBundle
     result?: DiagnosisResult
+    history?: HistoryAssessment[]
+    conversation?: ChatTurnForContext[]
   },
   options: StreamOptions = {},
 ): StreamResult {
-  const knowledge = sliceOf(input.answers, input.bundle, input.pathId, input.result)
+  const knowledge = sliceOf(
+    input.answers, input.bundle, input.pathId, input.result,
+    input.history, input.conversation,
+  )
   const { instructions, turns } = splitSystem(
     buildChatMessages({
       knowledge,

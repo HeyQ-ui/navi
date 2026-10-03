@@ -193,3 +193,61 @@ describe('buildChatMessages', () => {
     expect(messages[0]!.role).toBe('system')
   })
 })
+
+const priorResult: DiagnosisResult = {
+  indicators: {
+    'academic-interest': { score: 40, known: true, consistency: 0.8, sources: ['q1'] },
+  },
+  paths: [{
+    id: 'same-discipline-kaoyan', match: 44, confidence: 0.6,
+    eligibility: { applicable: true, hardFailures: [], softWarnings: [] },
+    contributions: [],
+  }],
+  archetypes: [],
+}
+
+describe('上下文 · 历次自我测评（专项 §11.4）', () => {
+  it('有历史时渲染出时间、分数与主推荐路径', () => {
+    const text = buildSystemContent({
+      ...knowledge,
+      history: [{ createdAt: '2026-01-05T00:00:00.000Z', result: priorResult }],
+    })
+    expect(text).toContain('2026-01-05')
+    expect(text).toContain('学术志趣：40/100')
+    // 断言路径 id 而不是中文名：id 一定会出现（查不到标题时回落成 id），
+    // 而这份 bundle 里没有这条路径
+    expect(text).toContain('same-discipline-kaoyan')
+  })
+
+  it('有历史时刻意说明「不含本次」，免得模型把当次当成历史', () => {
+    const text = buildSystemContent({
+      ...knowledge,
+      history: [{ createdAt: '2026-01-05T00:00:00.000Z', result: priorResult }],
+    })
+    expect(text).toContain('不含本次')
+  })
+
+  it('没有历史时整段不出现，而不是留一个空标题', () => {
+    expect(buildSystemContent({ ...knowledge })).not.toContain('历次自我测评')
+    expect(buildSystemContent({ ...knowledge, history: [] })).not.toContain('历次自我测评')
+  })
+})
+
+describe('上下文 · 此前的对话（专项 §11.4）', () => {
+  it('按角色渲染成对话记录', () => {
+    const text = buildSystemContent({
+      ...knowledge,
+      conversation: [
+        { role: 'user', content: '保研和考研怎么选？' },
+        { role: 'assistant', content: '两者的时间窗不同。' },
+      ],
+    })
+    expect(text).toContain('保研和考研怎么选？')
+    expect(text).toContain('两者的时间窗不同。')
+  })
+
+  it('没有对话时整段不出现', () => {
+    expect(buildSystemContent({ ...knowledge })).not.toContain('此前的对话')
+    expect(buildSystemContent({ ...knowledge, conversation: [] })).not.toContain('此前的对话')
+  })
+})

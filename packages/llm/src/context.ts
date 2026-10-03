@@ -1,5 +1,16 @@
+import { findTiedPaths } from '@navi/core'
 import type { Answers, DiagnosisResult, KnowledgeBundle, Question } from '@navi/core'
 import type { ModelMessage } from 'ai'
+
+export interface HistoryAssessment {
+  createdAt: string
+  result: DiagnosisResult
+}
+
+export interface ChatTurnForContext {
+  role: 'user' | 'assistant'
+  content: string
+}
 
 export interface KnowledgeSlice {
   bundle: KnowledgeBundle
@@ -8,6 +19,10 @@ export interface KnowledgeSlice {
   pathId: string
   /** 本次逐题作答（题目 id → 选项序号 0–4） */
   answers: Answers
+  /** 历次自我测评摘要（**不含当次**），时间倒序。空或不传时整段不渲染（专项 §11.4） */
+  history?: HistoryAssessment[]
+  /** 已按来源过滤的对话轮次，时间正序。空或不传时整段不渲染（专项 §11.4） */
+  conversation?: ChatTurnForContext[]
 }
 
 /** 选项序号到可见记号。§5.2 的五档：档位越高，该指标越高 */
@@ -134,12 +149,57 @@ function formatBoundaries(slice: KnowledgeSlice): string {
 }
 
 /**
- * 拼出 <knowledge> 块的内容（设计文档 §8.2 + §8.5）。
+ * 历次自我测评摘要（专项 §11.4）。
+ *
+ * **不含当次**——当次的完整结果已在上面的「诊断结果」段里，列进来就是重复。
+ * 标题里明说「不含本次」，是因为模型看到一串历史时很容易把最近那条当成当次，
+ * 那会让「你的变化」段算错一次。
+ */
+function formatHistory(slice: KnowledgeSlice): string | null {
+  const history = slice.history ?? []
+  if (history.length === 0) return null
+
+  // 显式给出 Map 的类型参数：IndicatorId / PathId 是字面量联合，而 Object.entries
+  // 出来的是 string，不收窄就会在 .get() 上报 TS2345（同 formatIndicators 的写法）
+  const titles = new Map<string, string>(slice.bundle.paths.map(p => [p.id, p.title]))
+  const names = new Map<string, string>(slice.bundle.indicators.map(i => [i.id, i.name]))
+
+  return history.map(entry => {
+    const main = findTiedPaths(entry.result)[0]
+    const date = entry.createdAt.slice(0, 10)
+    const scores = Object.entries(entry.result.indicators)
+      .map(([id, s]) => {
+        const name = names.get(id) ?? id
+        return `${name}：${s.known ? `${Math.round(s.score)}/100` : '无数据'}`
+      })
+      .join('，')
+    const path = main === undefined
+      ? '当前没有匹配的路径'
+      : `主推荐路径：${titles.get(main.id) ?? main.id}（匹配度 ${Math.round(main.match)}）`
+    return `- ${date} ${path}\n  ${scores}`
+  }).join('\n')
+}
+
+/** 此前的对话（专项 §11.4）。只渲染内容与角色，不渲染时间——时间对判断没有帮助 */
+function formatConversation(slice: KnowledgeSlice): string | null {
+  const conversation = slice.conversation ?? []
+  if (conversation.length === 0) return null
+  return conversation
+    .map(turn => `${turn.role === 'user' ? '学生' : '你'}：${turn.content}`)
+    .join('\n\n')
+}
+
+/**
+ * 拼出 <knowledge> 块的内容（设计文档 §8.2 + §8.5、专项 §11.4）。
  * 顺序固定，便于测试与排查；模型只能使用这里面的信息（§8.3）。
  */
 export function buildSystemContent(slice: KnowledgeSlice): string {
   const currentTitle =
     slice.bundle.paths.find(p => p.id === slice.pathId)?.title ?? slice.pathId
+
+  // 两段都是条件插入：没有内容时整段不出现，而不是留一个空标题
+  const historyBlock = formatHistory(slice)
+  const conversationBlock = formatConversation(slice)
 
   return [
     '<knowledge>',
@@ -151,6 +211,9 @@ export function buildSystemContent(slice: KnowledgeSlice): string {
     '',
     `### 本路径（${currentTitle}）的匹配依据`,
     formatContributions(slice),
+    ...(historyBlock === null
+      ? []
+      : ['', '## 历次自我测评（最近数次，不含本次）', historyBlock]),
     '',
     '## 画像标签',
     formatArchetypes(slice),
@@ -163,6 +226,10 @@ export function buildSystemContent(slice: KnowledgeSlice): string {
     '',
     '## 全部路径摘要',
     formatAllSummaries(slice),
+    // 对话放在最后：信息的新近性决定了它该离提问最近
+    ...(conversationBlock === null
+      ? []
+      : ['', '## 此前的对话（最近数轮）', conversationBlock]),
     '',
     '## 我们无法可靠回答的问题',
     formatBoundaries(slice),
