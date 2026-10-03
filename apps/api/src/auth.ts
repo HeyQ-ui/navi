@@ -135,7 +135,12 @@ export function registerAuthRoutes(app: Hono, opts: AuthOptions): void {
     const body = await readBody(c)
     if (body === null) return c.json({ error: '请求体不是合法 JSON' }, 400)
 
-    // 用户名格式非法也走 401 同一句文案：换成 400 就等于告诉试探者「这个名字格式不对」
+    // 用户名格式非法也走 401 同一句文案：换成 400 就等于告诉试探者「这个名字格式不对」。
+    //
+    // 但别把这条读成「登录不泄露用户是否存在」：文案与状态码一致，时序上却仍可分辨
+    // ——verifyUser 对不存在的用户名直接返回，不跑 scrypt。要堵它得在查不到时也跑一次
+    // 同样的哈希，但那买不到任何东西：/api/auth/register 对已占用的用户名返回 409，
+    // 本就直接泄露存在性（spec §6 自己要求的）。只藏一条本已公开的信息，没有收益。
     const username = normalizeUsername(body.username)
     const password = typeof body.password === 'string' ? body.password : ''
     const user = username === null ? null : opts.store().verifyUser(username, password)

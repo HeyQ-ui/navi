@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { fetchAssessment, fetchAssessments, fetchMe, fetchQuestions, postDiagnose } from './api.js'
+import { fetchAssessment, fetchAssessments, fetchMe, fetchQuestions, postDiagnose, logout } from './api.js'
 import { App } from './App.js'
 
 vi.mock('./api.js', () => ({
@@ -32,6 +32,36 @@ describe('App · 登录门槛（spec §4.3）', () => {
     vi.mocked(fetchMe).mockResolvedValue(null)
     render(<App />)
     expect(await screen.findByRole('button', { name: '登录' })).toBeInTheDocument()
+  })
+
+  it('会话探测失败时退回登录页并说明原因，而不是静默卡住', async () => {
+    vi.mocked(fetchMe).mockRejectedValue(new Error('503'))
+    render(<App />)
+    expect(await screen.findByRole('button', { name: '登录' })).toBeInTheDocument()
+    expect(screen.getByText(/无法连接服务端/)).toBeInTheDocument()
+  })
+})
+
+describe('App · 登出（spec §4.6）', () => {
+  it('登出成功后回到登录页', async () => {
+    vi.mocked(logout).mockResolvedValue(undefined)
+    await renderSignedIn()
+
+    await userEvent.click(screen.getByRole('button', { name: '登出' }))
+
+    expect(await screen.findByRole('button', { name: '登录' })).toBeInTheDocument()
+  })
+
+  it('登出请求失败时留在原地并报错，不假装已登出', async () => {
+    // 共享电脑上「以为登出了、其实没有」比「登出失败」危险得多，所以只有服务端
+    // 确认清了 cookie 才回登录页
+    vi.mocked(logout).mockRejectedValue(new Error('登出失败：500'))
+    await renderSignedIn()
+
+    await userEvent.click(screen.getByRole('button', { name: '登出' }))
+
+    expect(await screen.findByText('登出失败：500')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '测测自己' })).toBeInTheDocument()
   })
 })
 

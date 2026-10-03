@@ -8,14 +8,16 @@ import type { Answers, DiagnosisResult } from '@navi/core'
 /**
  * 为什么用 createRequire 而不是 `import { DatabaseSync } from 'node:sqlite'`。
  *
- * vite 5.4 判断「是不是 node 内置模块」用的是
- * `builtinModules.filter(id => !id.includes(':'))`——它主动把带前缀的名字滤掉。
- * 而 node:sqlite 在 Node 25 里只有带前缀的形式（isBuiltin('sqlite') === false），
- * 于是 vitest 走 vite 的解析时报 "Failed to load url sqlite"。
- * 试过 vite 插件标 external，vitest 的 module runner 不认，仍然去加载。
+ * 实测的事实（Node 25.9.0 + vite 5.4.21）：
+ * - `isBuiltin('node:sqlite')` 为 true，但 `isBuiltin('sqlite')` 为 false——
+ *   这个内置模块没有不带前缀的形式，`builtinModules` 里也没有裸 `sqlite`
+ * - vitest 的报错是 `Failed to load url sqlite (resolved id: sqlite)`：
+ *   走到解析那一步时前缀已经被剥掉了，于是拿裸名去找文件、找不到
+ * - 两条更干净的修法都试过且无效：`test.server.deps.external` 不覆盖内置模块，
+ *   vite 插件返回 `{ id, external: true }` 会生效 id 但 vitest 的 module runner 仍去加载
  *
- * 走 createRequire 是在运行时取，node 原生解析，tsx 与 vitest 两边都通。
- * 等 vite 升级到能识别 node:sqlite 之后可以改回静态导入。
+ * 走 createRequire 是在运行时取，交给 node 原生解析，tsx 与 vitest 两边都通
+ * （生产路径已用 tsx 实测）。等 vite 能识别 node:sqlite 之后可以改回静态导入。
  */
 const { DatabaseSync } = createRequire(import.meta.url)('node:sqlite') as typeof import('node:sqlite')
 
@@ -236,15 +238,24 @@ export function openStore(file: string): Store {
         'SELECT * FROM assessments WHERE id = ? AND user_id = ?',
       ).get(id, userId) as AssessmentDbRow | undefined
       if (row === undefined) return null
-      return {
-        id: row.id,
-        userId: row.user_id,
-        source: row.source as Source,
-        grade: row.grade,
-        answers: JSON.parse(row.answers) as Answers,
-        result: JSON.parse(row.result) as DiagnosisResult,
-        interpretation: row.interpretation,
-        createdAt: row.created_at,
+
+      // 与 listAssessments 的守卫对称：坏行返回 null（调用方转 404），而不是让
+      // JSON.parse 的 SyntaxError 冒到路由层变成 500。列表已过滤坏行，所以这条
+      // 正常路径走不到；书签或旧分享链接可以直达。
+      try {
+        return {
+          id: row.id,
+          userId: row.user_id,
+          source: row.source as Source,
+          grade: row.grade,
+          answers: JSON.parse(row.answers) as Answers,
+          result: JSON.parse(row.result) as DiagnosisResult,
+          interpretation: row.interpretation,
+          createdAt: row.created_at,
+        }
+      } catch {
+        console.warn(`[store] 跳过无法读取的测评记录：${row.id}`)
+        return null
       }
     },
 

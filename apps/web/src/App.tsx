@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { fetchAssessment, fetchMe, fetchQuestions, postDiagnose } from './api.js'
+import { fetchAssessment, fetchMe, fetchQuestions, logout, postDiagnose } from './api.js'
 import type {
   AssessmentDetail, AssessmentSource, DiagnosisResponse, Grade, QuestionsResponse,
 } from './api.js'
@@ -29,13 +29,17 @@ export function App() {
   const [historyDetail, setHistoryDetail] = useState<AssessmentDetail | null>(null)
   const [message, setMessage] = useState('')
 
-  // 挂载时问一次服务端「我是谁」：已登录的用户不该被推回登录页
+  // 挂载时问一次服务端「我是谁」：已登录的用户不该被推回登录页。
+  // 探测失败（服务端 503/500、网络不通）时说明原因再退回登录页——
+  // 不接 catch 会产生未处理的 rejection，用户只看到一个没有解释的登录页。
   useEffect(() => {
-    void fetchMe().then(me => {
-      if (me === null) return
-      setUsername(me.username)
-      setStage('choosing')
-    })
+    void fetchMe()
+      .then(me => {
+        if (me === null) return
+        setUsername(me.username)
+        setStage('choosing')
+      })
+      .catch(() => setMessage('无法连接服务端，请稍后重试'))
   }, [])
 
   async function chooseGrade(value: Grade) {
@@ -77,8 +81,31 @@ export function App() {
     setStage('choosing')
   }
 
+  async function signOut() {
+    setMessage('')
+    try {
+      await logout()
+      // 只有服务端确认清了 cookie 才回登录页。失败就留在原地报错——
+      // 「以为登出了、其实没有」比「登出失败」危险得多。
+      setUsername('')
+      setSource('self')
+      setAssessmentId('')
+      setData(null)
+      setResult(null)
+      setHistoryDetail(null)
+      setStage('auth')
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : '登出失败，请重试')
+    }
+  }
+
   if (stage === 'auth') {
-    return <Login onSuccess={name => { setUsername(name); setStage('choosing') }} />
+    return (
+      <>
+        {message !== '' && <p className="p-6 text-red-600">{message}</p>}
+        <Login onSuccess={name => { setUsername(name); setStage('choosing') }} />
+      </>
+    )
   }
 
   if (stage === 'choosing') {
@@ -111,6 +138,14 @@ export function App() {
           onClick={() => setStage('history')}
         >
           我的历史
+        </button>
+        {message !== '' && <p className="mt-3 text-red-600">{message}</p>}
+        <button
+          type="button"
+          className="mt-4 block text-sm text-gray-600 underline"
+          onClick={() => void signOut()}
+        >
+          登出
         </button>
       </div>
     )

@@ -132,6 +132,27 @@ describe('assessments', () => {
     rmSync(dir, { recursive: true, force: true })
   })
 
+  it('findAssessment 遇到坏行返回 null 而不是抛错（与列表守卫对称）', () => {
+    const dir = join(tmpdir(), `navi-store-bad-${randomUUID()}`)
+    const file = join(dir, 'navi.db')
+
+    const s = openStore(file)
+    const user = s.createUser('alice', 'pw123456')
+    const id = s.createAssessment({ userId: user.id, ...input })
+    s.close()
+
+    // JSON 本身坏掉：只能绕过公开接口造出来（手工改库 / 旧版本写坏）
+    const raw = new DatabaseSync(file)
+    raw.prepare('UPDATE assessments SET result = ? WHERE id = ?').run('{不是合法 JSON', id)
+    raw.close()
+
+    const reopened = openStore(file)
+    expect(reopened.findAssessment(id, user.id)).toBeNull()
+    expect(reopened.listAssessments(user.id)).toEqual([])
+    reopened.close()
+    rmSync(dir, { recursive: true, force: true })
+  })
+
   it('setInterpretation 只改 interpretation，其余字段一字不动', () => {
     const user = store.createUser('alice', 'pw123456')
     const id = store.createAssessment({ userId: user.id, ...input })

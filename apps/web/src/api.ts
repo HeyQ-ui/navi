@@ -46,8 +46,9 @@ export async function postDiagnose(
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ answers, grade, source }),
   })
-  if (!res.ok) throw new Error(`诊断失败：${res.status}`)
-  return (await res.json()) as DiagnosisResponse
+  // 走 jsonOrThrow 而不是只报状态码：题目没答全时服务端会指名哪几道题，
+  // 那条信息对用户才有用
+  return (await jsonOrThrow(res, '诊断')) as DiagnosisResponse
 }
 
 export interface Account {
@@ -81,7 +82,9 @@ export async function authenticate(
 }
 
 export async function logout(): Promise<void> {
-  await fetch('/api/auth/logout', { method: 'POST' })
+  const res = await fetch('/api/auth/logout', { method: 'POST' })
+  // 非 2xx 必须抛：cookie 可能没清掉，调用方不能当成已登出（共享电脑上要紧）
+  if (!res.ok) throw new Error(`登出失败：${res.status}`)
 }
 
 export interface AssessmentSummary {
