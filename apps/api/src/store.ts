@@ -107,9 +107,41 @@ interface AssessmentDbRow {
 
 type AssessmentListRow = Omit<AssessmentDbRow, 'user_id' | 'answers' | 'interpretation'>
 
+export interface ChatTurn {
+  id: string
+  assessmentId: string | null
+  pathId: string | null
+  source: Source
+  role: 'user' | 'assistant'
+  content: string
+  createdAt: string
+}
+
+interface MessageDbRow {
+  id: string
+  assessment_id: string | null
+  path_id: string | null
+  source: string
+  role: string
+  content: string
+  created_at: string
+}
+
 /** node:sqlite 的 .get()/.all() 返回 null 原型对象，逐字段映射成普通对象再往外给 */
 function toUser(row: UserRow): User {
   return { id: row.id, username: row.username, createdAt: row.created_at }
+}
+
+function toChatTurn(row: MessageDbRow): ChatTurn {
+  return {
+    id: row.id,
+    assessmentId: row.assessment_id,
+    pathId: row.path_id,
+    source: row.source as Source,
+    role: row.role as ChatTurn['role'],
+    content: row.content,
+    createdAt: row.created_at,
+  }
 }
 
 export interface Store {
@@ -126,6 +158,23 @@ export interface Store {
   listAssessments(userId: string): AssessmentRow[]
   findAssessment(id: string, userId: string): AssessmentRecord | null
   setInterpretation(id: string, text: string): void
+  /** 一轮问答成对写入。只在回答的流正常结束后调用（闸门见 apps/api/src/server.ts） */
+  appendTurn(input: {
+    userId: string
+    assessmentId: string | null
+    pathId: string | null
+    source: Source
+    userText: string
+    assistantText: string
+  }): void
+  /**
+   * 该账号最近的对话轮次，**按时间正序**返回（便于直接拼进上下文）。
+   *
+   * 来源过滤见 spec §7 / §11.4：`source='self'` 的一律纳入；`source='other'` 的
+   * 只有锚点是 `currentAssessmentId` 时才纳入——这样在「测测别人」的页面上能连续
+   * 追问，回到自己的页面时别人的轮次不混进来。
+   */
+  recentTurns(userId: string, currentAssessmentId: string | null, limit: number): ChatTurn[]
   close(): void
 }
 
@@ -155,6 +204,20 @@ export function openStore(file: string): Store {
 
     CREATE INDEX IF NOT EXISTS idx_assessments_user
       ON assessments(user_id, created_at DESC);
+
+    CREATE TABLE IF NOT EXISTS messages (
+      id            TEXT PRIMARY KEY,
+      user_id       TEXT NOT NULL REFERENCES users(id),
+      assessment_id TEXT,
+      path_id       TEXT,
+      source        TEXT NOT NULL CHECK (source IN ('self','other')),
+      role          TEXT NOT NULL CHECK (role IN ('user','assistant')),
+      content       TEXT NOT NULL,
+      created_at    TEXT NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_messages_user
+      ON messages(user_id, created_at);
   `)
 
   const findUserByName = db.prepare('SELECT * FROM users WHERE username = ?')
@@ -263,6 +326,34 @@ export function openStore(file: string): Store {
       // 全表唯一一次 UPDATE：只写这一个字段。answers / result / source / created_at
       // 一经写入永不改变（spec §4.4）。
       db.prepare('UPDATE assessments SET interpretation = ? WHERE id = ?').run(text, id)
+    },
+
+    appendTurn(input) {
+      const now = new Date().toISOString()
+      const insert = db.prepare(
+        `INSERT INTO messages
+           (id, user_id, assessment_id, path_id, source, role, content, created_at)
+         VALUES (?,?,?,?,?,?,?,?)`,
+      )
+      // 两条一起写（同一个时间戳）：失败的轮次什么都不落库，否则上下文里会留下
+      // 「用户问了但没人答」的悬空轮次（spec §11.3）。
+      insert.run(randomUUID(), input.userId, input.assessmentId, input.pathId,
+        input.source, 'user', input.userText, now)
+      insert.run(randomUUID(), input.userId, input.assessmentId, input.pathId,
+        input.source, 'assistant', input.assistantText, now)
+    },
+
+    recentTurns(userId, currentAssessmentId, limit) {
+      // 先按时间倒序取最近 N 条，再翻正——LIMIT 必须作用在倒序上才对
+      const rows = db.prepare(
+        `SELECT * FROM messages
+         WHERE user_id = ?
+           AND (source = 'self' OR assessment_id = ?)
+         ORDER BY created_at DESC, rowid DESC
+         LIMIT ?`,
+      ).all(userId, currentAssessmentId, limit) as unknown as MessageDbRow[]
+
+      return rows.reverse().map(toChatTurn)
     },
 
     close() {

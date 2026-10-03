@@ -517,6 +517,9 @@ CREATE TABLE IF NOT EXISTS messages (
   user_id       TEXT NOT NULL REFERENCES users(id),
   assessment_id TEXT,               -- 这一轮是在哪条测评下产生的
   path_id       TEXT,               -- 当时正在看哪条路径
+  source        TEXT NOT NULL CHECK (source IN ('self','other')),
+                                    -- 来源在写入时就知道且永不改变。冗余在这里，
+                                    -- 来源过滤就成了一条 WHERE，不必 JOIN 回 assessments
   role          TEXT NOT NULL CHECK (role IN ('user','assistant')),
   content       TEXT NOT NULL,
   created_at    TEXT NOT NULL
@@ -576,8 +579,9 @@ CREATE INDEX IF NOT EXISTS idx_messages_user
 第二条是为了让「测测别人」的页面也能连续追问——否则一问一答都接不上。一旦用户离开
 那条记录，那些轮次立即不在上下文里。
 
-对话轮次里 `assessment_id` 为 `NULL` 的（旧数据）按 `self` 处理，宁可多纳入也不要
-凭空丢掉上下文。
+过滤**只看 `source` 列**（写入时定死、有 `NOT NULL` 约束），不依赖 `assessment_id`
+是否为空。`assessment_id` 为 `NULL` 只意味着「这一轮没有锚定到某条记录」，
+与来源无关。
 
 ### 11.5 解读改四段
 

@@ -168,3 +168,99 @@ describe('assessments', () => {
     expect(after.source).toBe(before.source)
   })
 })
+
+describe('messages（账号级对话流）', () => {
+  function seed(s: Store) {
+    const user = s.createUser('alice', 'pw123456')
+    const self = s.createAssessment({ userId: user.id, ...input, source: 'self' })
+    const other = s.createAssessment({ userId: user.id, ...input, source: 'other' })
+    return { userId: user.id, self, other }
+  }
+
+  it('追加一轮后能按时间正序读回', () => {
+    const { userId, self } = seed(store)
+    store.appendTurn({
+      userId, assessmentId: self, pathId: 'p1', source: 'self',
+      userText: '保研和考研怎么选？', assistantText: '两者的时间窗不同。',
+    })
+
+    const turns = store.recentTurns(userId, self, 20)
+    expect(turns.map(t => t.role)).toEqual(['user', 'assistant'])
+    expect(turns[0]!.content).toBe('保研和考研怎么选？')
+    expect(turns[1]!.content).toBe('两者的时间窗不同。')
+    expect(turns[0]!.source).toBe('self')
+  })
+
+  it('对话流是全账号一条：换路径也读得到', () => {
+    const { userId, self } = seed(store)
+    store.appendTurn({
+      userId, assessmentId: self, pathId: 'p1', source: 'self',
+      userText: '第一问', assistantText: '第一答',
+    })
+    store.appendTurn({
+      userId, assessmentId: self, pathId: 'p2', source: 'self', // 换了路径
+      userText: '第二问', assistantText: '第二答',
+    })
+
+    expect(store.recentTurns(userId, self, 20).map(t => t.content))
+      .toEqual(['第一问', '第一答', '第二问', '第二答'])
+  })
+
+  it('来源过滤：other 的轮次只在查看那条记录时进来', () => {
+    const { userId, self, other } = seed(store)
+    store.appendTurn({
+      userId, assessmentId: self, pathId: 'p1', source: 'self',
+      userText: '关于我自己', assistantText: '答我自己',
+    })
+    store.appendTurn({
+      userId, assessmentId: other, pathId: 'p1', source: 'other',
+      userText: '关于我朋友', assistantText: '答我朋友',
+    })
+
+    // 查看自己的记录：别人的轮次不出现
+    expect(store.recentTurns(userId, self, 20).map(t => t.content))
+      .toEqual(['关于我自己', '答我自己'])
+
+    // 查看那条 other 记录：它自己的轮次回来，self 的也在（账号级流）
+    expect(store.recentTurns(userId, other, 20).map(t => t.content))
+      .toEqual(['关于我自己', '答我自己', '关于我朋友', '答我朋友'])
+  })
+
+  it('只看得到本人的对话', () => {
+    const { userId, self } = seed(store)
+    const bob = store.createUser('bob', 'pw123456')
+    store.appendTurn({
+      userId, assessmentId: self, pathId: null, source: 'self',
+      userText: '爱丽丝的问题', assistantText: '答',
+    })
+    expect(store.recentTurns(bob.id, null, 20)).toEqual([])
+  })
+
+  it('limit 取最近 N 条，但仍按时间正序返回', () => {
+    const { userId, self } = seed(store)
+    for (let i = 1; i <= 5; i += 1) {
+      store.appendTurn({
+        userId, assessmentId: self, pathId: null, source: 'self',
+        userText: `第${i}问`, assistantText: `第${i}答`,
+      })
+    }
+    // 5 轮 = 10 条消息，取最近 4 条即最后两轮
+    const turns = store.recentTurns(userId, self, 4)
+    expect(turns.map(t => t.content)).toEqual(['第4问', '第4答', '第5问', '第5答'])
+    // 更早的确实被截掉了，而不是「全都要」
+    expect(turns.map(t => t.content)).not.toContain('第1问')
+  })
+
+  it('currentAssessmentId 为 null 时只纳入 self 的轮次', () => {
+    const { userId, self, other } = seed(store)
+    store.appendTurn({
+      userId, assessmentId: self, pathId: null, source: 'self',
+      userText: '自己', assistantText: '答自己',
+    })
+    store.appendTurn({
+      userId, assessmentId: other, pathId: null, source: 'other',
+      userText: '别人', assistantText: '答别人',
+    })
+    expect(store.recentTurns(userId, null, 20).map(t => t.content)).toEqual(['自己', '答自己'])
+  })
+})
