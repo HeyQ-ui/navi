@@ -10,10 +10,11 @@ summary: >
   关联较弱的情况下，靠实习经历、自学成果和作品来弥补专业不对口。这条路的主动权
   更多在自己手里，但需要更早开始积累。
 weights:
-  - { indicator: accumulation-drive, weight: 0.35, ideal: 90 }
-  - { indicator: discipline-identity, weight: 0.30, ideal: 25 }
-  - { indicator: risk-preference, weight: 0.20, ideal: 50 }
-  - { indicator: academic-interest, weight: 0.15, ideal: 25 }
+  - { indicator: accumulation-drive, weight: 0.25, ideal: 90 }
+  - { indicator: discipline-identity, weight: 0.25, ideal: 25 }
+  - { indicator: grad-intention-none, weight: 0.25, ideal: 100 }
+  - { indicator: risk-preference, weight: 0.15, ideal: 50 }
+  - { indicator: academic-interest, weight: 0.10, ideal: 25 }
 eligibility: []
 ---
 

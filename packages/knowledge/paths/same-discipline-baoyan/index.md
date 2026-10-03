@@ -11,7 +11,7 @@ summary: >
   入场券，科研、英语、竞赛加分项在很多学校能直接改写最终结果。
 weights:
   - { indicator: academic-interest, weight: 0.25, ideal: 85 }
-  - { indicator: gpa-competitiveness, weight: 0.35, ideal: 90 }
+  - { indicator: grad-intention-baoyan, weight: 0.35, ideal: 100 }
   - { indicator: discipline-identity, weight: 0.15, ideal: 80 }
   - { indicator: cost-tolerance, weight: 0.15, ideal: 60 }
   - { indicator: risk-preference, weight: 0.10, ideal: 75 }
@@ -20,7 +20,7 @@ eligibility:
     questionId: eligibility-tuimian-quota
     severity: hard
     failMessage: 你的学校没有推免资格，这条路对你当前不成立
-    passWhen: [0, 4]
+    passWhen: [0, 3]
 ---
 
 <!-- @block type="timeline" -->

@@ -10,10 +10,10 @@ summary: >
   但要求一年以上的持续投入，且结果高度依赖当年的报考人数与分数线。对绩点不占优、
   但愿意长期投入的人来说，这是重开一局的机会。
 weights:
-  - { indicator: stress-endurance, weight: 0.30, ideal: 80 }
+  - { indicator: grad-intention-kaoyan, weight: 0.25, ideal: 100 }
   - { indicator: academic-interest, weight: 0.25, ideal: 70 }
+  - { indicator: stress-endurance, weight: 0.20, ideal: 80 }
   - { indicator: risk-preference, weight: 0.20, ideal: 40 }
-  - { indicator: gpa-competitiveness, weight: 0.15, ideal: 50 }
   - { indicator: cost-tolerance, weight: 0.10, ideal: 50 }
 eligibility: []
 ---

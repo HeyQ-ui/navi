@@ -10,8 +10,9 @@ summary: >
   补齐别人四年的专业基础。这是转赛道成本相对较低、也最需要提前启动的一条路：先修内容
   越早开始，后期越从容。
 weights:
-  - { indicator: discipline-identity, weight: 0.30, ideal: 25 }
-  - { indicator: stress-endurance, weight: 0.30, ideal: 85 }
+  - { indicator: grad-intention-kaoyan, weight: 0.20, ideal: 100 }
+  - { indicator: discipline-identity, weight: 0.20, ideal: 25 }
+  - { indicator: stress-endurance, weight: 0.20, ideal: 85 }
   - { indicator: risk-preference, weight: 0.20, ideal: 35 }
   - { indicator: accumulation-drive, weight: 0.20, ideal: 75 }
 eligibility: []

@@ -9,10 +9,11 @@ summary: >
   本科就业是用实习和项目经历，在毕业时直接换取一份本专业相关的工作。它路径最短、
   见效最快，但起薪和天花板高度依赖行业周期，学历门槛往往在职业中后期才显现出来。
 weights:
-  - { indicator: accumulation-drive, weight: 0.35, ideal: 85 }
-  - { indicator: risk-preference, weight: 0.20, ideal: 55 }
-  - { indicator: academic-interest, weight: 0.20, ideal: 30 }
-  - { indicator: discipline-identity, weight: 0.15, ideal: 70 }
+  - { indicator: accumulation-drive, weight: 0.25, ideal: 85 }
+  - { indicator: grad-intention-none, weight: 0.25, ideal: 100 }
+  - { indicator: academic-interest, weight: 0.15, ideal: 30 }
+  - { indicator: risk-preference, weight: 0.15, ideal: 55 }
+  - { indicator: discipline-identity, weight: 0.10, ideal: 70 }
   - { indicator: cost-tolerance, weight: 0.10, ideal: 25 }
 eligibility: []
 ---

@@ -2,7 +2,6 @@ id: steady-scholar
 name: 稳健学术型
 vector:
   academic-interest: 85
-  gpa-competitiveness: 78
   discipline-identity: 80
   cost-tolerance: 60
   risk-preference: 80

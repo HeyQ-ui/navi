@@ -2,7 +2,6 @@ id: cautious-generalist
 name: 稳健通才型
 vector:
   academic-interest: 55
-  gpa-competitiveness: 55
   discipline-identity: 55
   cost-tolerance: 45
   risk-preference: 80

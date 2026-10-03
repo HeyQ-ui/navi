@@ -11,7 +11,7 @@ summary: >
   是硬通货，但「为什么跨」这个问题会被反复追问，需要提前有拿得出手的答案。
 weights:
   - { indicator: discipline-identity, weight: 0.30, ideal: 30 }
-  - { indicator: gpa-competitiveness, weight: 0.30, ideal: 90 }
+  - { indicator: grad-intention-baoyan, weight: 0.30, ideal: 100 }
   - { indicator: academic-interest, weight: 0.20, ideal: 75 }
   - { indicator: risk-preference, weight: 0.20, ideal: 55 }
 eligibility:
@@ -19,7 +19,7 @@ eligibility:
     questionId: eligibility-tuimian-quota
     severity: hard
     failMessage: 你的学校没有推免资格，这条路对你当前不成立
-    passWhen: [0, 4]
+    passWhen: [0, 3]
 ---
 
 <!-- @block type="timeline" -->

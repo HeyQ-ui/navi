@@ -10,10 +10,11 @@ summary: >
   且岗位对专业、学历、政治面貌有明确的限制条件。报考前的第一步不是备考，而是
   确认自己能不能报——大量岗位的限制条件会把很多人挡在报名环节之外。
 weights:
-  - { indicator: public-affairs-leaning, weight: 0.40, ideal: 85 }
-  - { indicator: risk-preference, weight: 0.25, ideal: 80 }
-  - { indicator: stress-endurance, weight: 0.20, ideal: 75 }
-  - { indicator: academic-interest, weight: 0.15, ideal: 30 }
+  - { indicator: public-affairs-leaning, weight: 0.35, ideal: 85 }
+  - { indicator: grad-intention-none, weight: 0.20, ideal: 100 }
+  - { indicator: risk-preference, weight: 0.20, ideal: 80 }
+  - { indicator: stress-endurance, weight: 0.15, ideal: 75 }
+  - { indicator: academic-interest, weight: 0.10, ideal: 30 }
 eligibility: []
 ---
 

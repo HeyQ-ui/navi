@@ -2,7 +2,6 @@ id: civil-service-bound
 name: 公共事务型
 vector:
   academic-interest: 30
-  gpa-competitiveness: 50
   discipline-identity: 45
   cost-tolerance: 40
   risk-preference: 85
