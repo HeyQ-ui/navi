@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import type { Question } from '../api.js'
 
 interface Props {
@@ -7,44 +7,22 @@ interface Props {
 }
 
 const GROUP_SIZE = 5
-const STORAGE_KEY = 'navi.questionnaire.answers'
 
 /**
- * 读取暂存的答案。任何异常都退化为空对象——暂存失败不应阻断答题。
+ * 作答只活在**这一次**测试里：组件一挂载就是空白，不落 localStorage。
  *
- * 只保留当前题面里存在的题目：题面改过之后（删题、换年级），暂存里会留着已经
- * 不存在的题目 id。它们不只是多余的键——会让「已完成」计数虚高、提交按钮在还有
- * 题没答时就亮起来，而提交上去的整份作答会被 /api/diagnose 按未知 id 直接拒成 400。
- * 过滤后的结果会被写回，「已完成」的数字因此自己就修好了。
+ * 曾经把作答暂存到 localStorage 以便中途续填，代价是它按「浏览器」而不是按
+ * 「账号 + 一次测试」保存，于是：
+ * - 换账号、换一次测评，都会看到上一次的选择（同一个键，谁都能读到）；
+ * - 题面改过之后，暂存里的旧题目 id 会让「已完成」计数虚高、提交按钮在还有题
+ *   没答时就亮起来，提交上去还会被服务端按未知 id 拒成 400。
+ *
+ * 续填省下的那点事抵不过这些串味：学生看到的选择必须是他这次点出来的。
+ * 每次重新进入一套测试都从空白开始。
  */
-function loadStoredAnswers(questions: Question[]): Record<string, number> {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    if (raw === null) return {}
-    const parsed: unknown = JSON.parse(raw)
-    if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) return {}
-    const knownIds = new Set(questions.map(q => q.id))
-    return Object.fromEntries(
-      Object.entries(parsed as Record<string, number>).filter(([id]) => knownIds.has(id)),
-    )
-  } catch {
-    return {}
-  }
-}
-
 export function Questionnaire({ questions, onSubmit }: Props) {
-  const [answers, setAnswers] = useState<Record<string, number>>(
-    () => loadStoredAnswers(questions),
-  )
+  const [answers, setAnswers] = useState<Record<string, number>>({})
   const [page, setPage] = useState(0)
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(answers))
-    } catch {
-      // 隐私模式或配额不足时静默忽略
-    }
-  }, [answers])
 
   const groups: Question[][] = []
   for (let i = 0; i < questions.length; i += GROUP_SIZE) {
