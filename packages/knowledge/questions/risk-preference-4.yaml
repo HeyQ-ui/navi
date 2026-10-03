@@ -1,0 +1,10 @@
+id: risk-preference-4
+indicator: risk-preference
+weight: 1
+text: 面对两条路：一条前景更好但要重新开始，另一条平平但确定能走通。你会：
+options:
+  - 一定选确定能走通的那条
+  - 倾向确定的那条
+  - 说不准，要看具体差多少
+  - 倾向前景更好的那条
+  - 一定选前景更好的那条

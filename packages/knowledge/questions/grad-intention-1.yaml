@@ -1,0 +1,13 @@
+id: grad-intention-1
+weight: 1
+text: 毕业后的去向，你现在的想法更接近哪一种？
+options:
+  - 想走保研：平时把绩点和排名冲上去，争取学校的推免名额
+  - 想走考研：大三大四集中突击，考进心仪的研究生院
+  - 不打算读研：毕业后直接就业或考公
+  - 还没想好
+scores:
+  - { grad-intention-baoyan: 100, grad-intention-kaoyan: 0, grad-intention-none: 0 }
+  - { grad-intention-baoyan: 0, grad-intention-kaoyan: 100, grad-intention-none: 0 }
+  - { grad-intention-baoyan: 0, grad-intention-kaoyan: 0, grad-intention-none: 100 }
+  - {}

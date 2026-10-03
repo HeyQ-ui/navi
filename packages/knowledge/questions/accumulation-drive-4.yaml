@@ -1,0 +1,11 @@
+id: accumulation-drive-4
+indicator: accumulation-drive
+weight: 1
+grades: [freshman]
+text: 第一次期中考试后，如果发现有一门课排在班级后半段，你会：
+options:
+  - 觉得可能自己就是这个水平
+  - 有点焦虑，但不知道怎么办
+  - 会想想问题出在哪
+  - 会去找方法补上
+  - 会立刻调整学习方式，并在下次验证
