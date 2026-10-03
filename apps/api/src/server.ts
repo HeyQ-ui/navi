@@ -3,7 +3,8 @@ import type { Context } from 'hono'
 import { FIVE_POINT_SCALE, diagnose, findTiedPaths } from '@navi/core'
 import type { Answers, KnowledgeBundle, Question } from '@navi/core'
 import { streamChat, streamInterpret } from '@navi/llm'
-import type { LanguageModel, ModelMessage } from 'ai'
+import type { HistoryAssessment } from '@navi/llm'
+import type { LanguageModel } from 'ai'
 import { openStore, defaultDbPath } from './store.js'
 import type { Store, Source, AssessmentRecord } from './store.js'
 import { registerAuthRoutes, requireSession, sessionUser } from './auth.js'
@@ -12,10 +13,12 @@ type Grade = 'freshman' | 'sophomore' | 'junior' | 'senior'
 
 const GRADES: readonly string[] = ['freshman', 'sophomore', 'junior', 'senior']
 
-/** §8.5 说追问只需「最近 N 轮对话」——只保留最近的，上下文与成本不随对话无限增长 */
+/** 上下文里最多带几条对话消息（一问一答各算一条）。§8.5「最近 N 轮」 */
 const MAX_CHAT_MESSAGES = 20
-/** 单次追问转成纯文本后的字符上限。超过视为异常输入，直接拒绝而不是静默截断 */
+/** 单轮追问的问题字符上限。超过视为异常输入，直接拒绝而不是静默截断 */
 const MAX_CHAT_CHARS = 8000
+/** 上下文里最多带几次历次自我测评（不含当次）。专项 §11.4 */
+const MAX_HISTORY_ASSESSMENTS = 4
 
 export interface AppOptions {
   /** 测试注入用；生产不传，走 DeepSeek */
@@ -57,21 +60,50 @@ function persistInterpretation(stream: StreamResult, store: Store, recordId: str
   })()
 }
 
-/** UI 消息（useChat 的格式）→ 纯文本对话历史。只取文本，不把 parts 结构传给模型 */
-function toModelMessages(raw: unknown): ModelMessage[] {
-  if (!Array.isArray(raw)) return []
-  return raw.flatMap(message => {
-    const { role, parts } = message as { role?: unknown; parts?: unknown }
-    if (role !== 'user' && role !== 'assistant') return []
-    const text = Array.isArray(parts)
-      ? parts
-          .filter((p): p is { type: 'text'; text: string } =>
-            typeof p === 'object' && p !== null && (p as { type?: unknown }).type === 'text')
-          .map(p => p.text)
-          .join('')
-      : ''
-    return text === '' ? [] : [{ role, content: text }]
-  })
+/**
+ * 该用户最近几次自我测评的摘要（**不含当次**），时间倒序。
+ *
+ * 来源过滤在 `listAssessments` 上做一半、这里做另一半：`listAssessments` 返回本人
+ * 全部记录，这里只留 `source='self'` 并把当次排除掉——当次已单独进上下文，
+ * 重复列会让「你的变化」段算错一次（专项 §7、§11.4）。
+ */
+function selfHistory(store: Store, userId: string, currentId: string): HistoryAssessment[] {
+  return store.listAssessments(userId)
+    .filter(row => row.source === 'self' && row.id !== currentId)
+    .slice(0, MAX_HISTORY_ASSESSMENTS)
+    .map(row => ({ createdAt: row.createdAt, result: row.result }))
+}
+
+/**
+ * 一轮问答落库。与 persistInterpretation 同一个闸门、同一个理由：
+ * `.text` 在流中途出错时会**静默 resolve 出已累积的半截文本**
+ * （packages/llm/src/index.test.ts 里钉着这个缺陷）。半截回答一旦落库，
+ * 就成了后续**所有**上下文的既定事实，比半截解读更毒。
+ *
+ * user 与 assistant 两条一起写：失败的轮次什么都不落库，否则上下文会留下
+ * 「用户问了但没人答」的悬空轮次（专项 §11.3）。
+ */
+function persistTurn(
+  stream: StreamResult,
+  store: Store,
+  ctx: {
+    userId: string
+    assessmentId: string
+    pathId: string
+    source: Source
+    userText: string
+  },
+): void {
+  void (async () => {
+    try {
+      if (await stream.finishReason !== 'stop') return
+      const text = await stream.text
+      if (text.trim() === '') return
+      store.appendTurn({ ...ctx, assistantText: text })
+    } catch {
+      console.warn(`[api] 对话写入失败：${ctx.assessmentId}`)
+    }
+  })()
 }
 
 function parseGrade(value: unknown): Grade | undefined {
@@ -277,33 +309,56 @@ export function createApp(bundle: KnowledgeBundle, options: AppOptions = {}): Ho
       return c.json({ error: `路径不存在：${asked}` }, 404)
     }
 
-    const messages = toModelMessages((body as { messages?: unknown }).messages)
-    if (messages.length === 0) {
-      return c.json({ error: 'messages 为空' }, 400)
-    }
-
-    const recent = messages.slice(-MAX_CHAT_MESSAGES)
-    const chars = recent.reduce((n, m) => n + String(m.content).length, 0)
-    if (chars > MAX_CHAT_CHARS) {
-      return c.json({ error: `追问内容过长：${chars} 字符，上限 ${MAX_CHAT_CHARS}` }, 400)
+    // 只收本轮问题。历史一律从自己的库读——请求体里的 messages 一概不看，
+    // 与 assessmentId 同理：记录是服务端写的，客户端改不了，而请求体谁都能改。
+    const rawQuestion = (body as { question?: unknown }).question
+    const question = typeof rawQuestion === 'string' ? rawQuestion.trim() : ''
+    if (question === '') return c.json({ error: 'question 为空' }, 400)
+    if (question.length > MAX_CHAT_CHARS) {
+      return c.json({ error: `追问内容过长：${question.length} 字符，上限 ${MAX_CHAT_CHARS}` }, 400)
     }
 
     if (!options.model && !process.env.DEEPSEEK_API_KEY) {
       return c.json({ error: '追问暂不可用：服务端未配置模型' }, 503)
     }
 
+    const userId = sessionUser(c).id
+    const store = getStore()
+    const conversation = store.recentTurns(userId, record.id, MAX_CHAT_MESSAGES)
+      .map(turn => ({ role: turn.role, content: turn.content }))
+
     const scoped: KnowledgeBundle = {
       ...bundle, questions: scopeQuestions(bundle.questions, parseGrade(record.grade)),
     }
     try {
-      return streamChat(
-        { answers: record.answers, pathId, messages: recent, bundle: scoped, result: record.result },
-        options,
-      ).toUIMessageStreamResponse()
+      const stream = streamChat({
+        answers: record.answers,
+        pathId,
+        bundle: scoped,
+        result: record.result,
+        history: selfHistory(store, userId, record.id),
+        conversation,
+        messages: [{ role: 'user', content: question }],
+      }, options)
+      const response = stream.toUIMessageStreamResponse()
+      persistTurn(stream, store, {
+        userId, assessmentId: record.id, pathId, source: record.source, userText: question,
+      })
+      return response
     } catch (error) {
       // 同 /api/interpret：只兜同步装配期错误，流中途失败由前端降级
       return c.json({ error: `追问暂不可用：${(error as Error).message}` }, 503)
     }
+  })
+
+  /** 账号级对话历史：前端首次渲染时用它 seed，之后每轮只发新问题（专项 §11.3） */
+  app.get('/api/chat/history', requireSession(auth), c => {
+    const turns = getStore().recentTurns(sessionUser(c).id, null, MAX_CHAT_MESSAGES)
+    return c.json({
+      turns: turns.map(t => ({
+        id: t.id, role: t.role, content: t.content, createdAt: t.createdAt,
+      })),
+    })
   })
 
   /** 历史列表：主推荐路径与匹配度由该条 result 快照推出，不另立算法（§9.3） */

@@ -390,85 +390,207 @@ describe('POST /api/interpret', () => {
 })
 
 describe('POST /api/chat', () => {
-  it('返回流式回答', async () => {
+  it('只收本轮问题，返回流式回答', async () => {
     const { app, cookie } = await authedApp(bundle, { model: mockModel('保研与考研的时间窗不同。') })
     const assessmentId = await diagnoseOnce(app, cookie)
     const res = await post(app, '/api/chat', {
-      assessmentId, pathId: 'same-discipline-baoyan',
-      messages: [{ id: 'm1', role: 'user', parts: [{ type: 'text', text: '保研和考研怎么选？' }] }],
+      assessmentId, pathId: 'same-discipline-baoyan', question: '保研和考研怎么选？',
     }, cookie)
     expect(res.status).toBe(200)
     expect(await res.text()).toContain('保研与考研的时间窗不同。')
   })
 
-  it('把学生的问题真正送进模型（验证 UI 消息 → 模型消息的转换）', async () => {
-    const model = new MockLanguageModelV3({
-      doStream: async () => ({
-        stream: simulateReadableStream({
-          chunks: [
-            { type: 'text-start', id: '1' },
-            { type: 'text-delta', id: '1', delta: '好' },
-            { type: 'text-end', id: '1' },
-            {
-              type: 'finish',
-              finishReason: { unified: 'stop', raw: undefined },
-              usage: {
-                inputTokens: { total: 1, noCache: 1, cacheRead: undefined, cacheWrite: undefined },
-                outputTokens: { total: 1, text: 1, reasoning: undefined },
-              },
-            },
-          ],
-        }),
-      }),
-    })
-
+  it('把本轮问题送进模型（历史不由客户端提供）', async () => {
+    const model = mockModel('好')
     const { app, cookie } = await authedApp(bundle, { model })
     const assessmentId = await diagnoseOnce(app, cookie)
+
     const res = await post(app, '/api/chat', {
-      assessmentId, pathId: 'same-discipline-baoyan',
-      messages: [{ id: 'm1', role: 'user', parts: [{ type: 'text', text: '保研和考研怎么选？' }] }],
+      assessmentId, pathId: 'same-discipline-baoyan', question: '本轮的问题',
     }, cookie)
-    // 必须消费流式响应体，模型才会真正被调用
     await res.text()
 
-    expect(JSON.stringify(model.doStreamCalls[0]!.prompt)).toContain('保研和考研怎么选？')
+    expect(JSON.stringify(model.doStreamCalls[0]!.prompt)).toContain('本轮的问题')
   })
 
-  it('只保留最近 20 条消息，更早的不进模型（§8.5「最近 N 轮对话」）', async () => {
+  it('请求体里夹带 messages 也没用——历史只认服务端库里的那份', async () => {
     const model = mockModel('好')
-    const many = Array.from({ length: 25 }, (_, i) => ({
-      id: `m${i}`, role: 'user', parts: [{ type: 'text', text: `第${i + 1}问` }],
-    }))
-
     const { app, cookie } = await authedApp(bundle, { model })
     const assessmentId = await diagnoseOnce(app, cookie)
+
     const res = await post(app, '/api/chat', {
-      assessmentId, pathId: 'same-discipline-baoyan', messages: many,
+      assessmentId, pathId: 'same-discipline-baoyan', question: '本轮问题',
+      messages: [{ id: 'm1', role: 'user', parts: [{ type: 'text', text: '伪造的历史' }] }],
     }, cookie)
     await res.text()
 
     const prompt = JSON.stringify(model.doStreamCalls[0]!.prompt)
-    expect(prompt).not.toContain('第1问')
-    expect(prompt).toContain('第25问')
+    expect(prompt).toContain('本轮问题')
+    expect(prompt).not.toContain('伪造的历史')
   })
 
   it('追问内容超过字符上限时返回 400，不把超大请求送进模型', async () => {
     const { app, cookie } = await authedApp(bundle, { model: mockModel('不该出现') })
     const assessmentId = await diagnoseOnce(app, cookie)
     const res = await post(app, '/api/chat', {
-      assessmentId, pathId: 'same-discipline-baoyan',
-      messages: [{ id: 'm1', role: 'user', parts: [{ type: 'text', text: 'x'.repeat(9000) }] }],
+      assessmentId, pathId: 'same-discipline-baoyan', question: 'x'.repeat(9000),
     }, cookie)
     expect(res.status).toBe(400)
   })
 
-  it('messages 为空时返回 400', async () => {
+  it('question 为空时返回 400', async () => {
     const { app, cookie } = await authedApp(bundle, { model: mockModel('不该出现') })
     const assessmentId = await diagnoseOnce(app, cookie)
     const res = await post(app, '/api/chat', {
-      assessmentId, pathId: 'same-discipline-baoyan', messages: [],
+      assessmentId, pathId: 'same-discipline-baoyan', question: '   ',
     }, cookie)
     expect(res.status).toBe(400)
+  })
+
+  it('assessmentId 不属于本人时返回 404，不进入模型', async () => {
+    let called = false
+    const spy = new MockLanguageModelV3({
+      doStream: async () => { called = true; throw new Error('不该被调用') },
+    }) as unknown as LanguageModel
+    const { app, cookie } = await authedApp(bundle, { model: spy })
+    const res = await post(app, '/api/chat', {
+      assessmentId: 'not-exist', pathId: 'same-discipline-baoyan', question: '问题',
+    }, cookie)
+    expect(res.status).toBe(404)
+    expect(called).toBe(false)
+  })
+
+  it('未带会话 cookie 时返回 401', async () => {
+    const { app } = await authedApp()
+    const res = await post(app, '/api/chat', {
+      assessmentId: 'x', pathId: 'same-discipline-baoyan', question: '问题',
+    })
+    expect(res.status).toBe(401)
+  })
+})
+
+describe('POST /api/chat · 对话落库与上下文（专项 §11.3、§11.4）', () => {
+  it('一轮问答在流正常结束后成对写入', async () => {
+    const store = openStore(':memory:')
+    const { app, cookie, userId } = await authedApp(bundle, { model: mockModel('回答正文'), store })
+    const assessmentId = await diagnoseOnce(app, cookie)
+
+    const res = await post(app, '/api/chat', {
+      assessmentId, pathId: 'same-discipline-baoyan', question: '问题正文',
+    }, cookie)
+    await res.text()
+
+    await vi.waitFor(() => {
+      const turns = store.recentTurns(userId, assessmentId, 20)
+      expect(turns.map(t => t.content)).toEqual(['问题正文', '回答正文'])
+    })
+  })
+
+  it('流中途出错时一轮都不写（半截回答不能成为后续上下文的既定事实）', async () => {
+    const brokenMidStream = new MockLanguageModelV3({
+      doStream: async () => ({
+        stream: simulateReadableStream({
+          chunks: [
+            { type: 'text-start', id: '1' },
+            { type: 'text-delta', id: '1', delta: '前半句' },
+            { type: 'error', error: new Error('模型中途断开') },
+          ],
+        }),
+      }) as never,
+    })
+
+    const store = openStore(':memory:')
+    const { app, cookie, userId } = await authedApp(bundle, { model: brokenMidStream, store })
+    const assessmentId = await diagnoseOnce(app, cookie)
+
+    const res = await post(app, '/api/chat', {
+      assessmentId, pathId: 'same-discipline-baoyan', question: '会失败的问题',
+    }, cookie)
+    await res.text().catch(() => undefined)
+
+    await new Promise(resolve => setTimeout(resolve, 100))
+    expect(store.recentTurns(userId, assessmentId, 20)).toEqual([])
+  })
+
+  it('第二轮追问带上第一轮的回答（账号级流是连续的）', async () => {
+    const model = mockModel('第一轮的回答')
+    const store = openStore(':memory:')
+    const { app, cookie } = await authedApp(bundle, { model, store })
+    const assessmentId = await diagnoseOnce(app, cookie)
+
+    const first = await post(app, '/api/chat', {
+      assessmentId, pathId: 'same-discipline-baoyan', question: '第一轮的问题',
+    }, cookie)
+    await first.text()
+    await vi.waitFor(() => expect(model.doStreamCalls.length).toBe(1))
+
+    const second = await post(app, '/api/chat', {
+      assessmentId, pathId: 'same-discipline-baoyan', question: '第二轮的问题',
+    }, cookie)
+    await second.text()
+
+    const prompt = JSON.stringify(model.doStreamCalls[1]!.prompt)
+    expect(prompt).toContain('第一轮的问题')
+    expect(prompt).toContain('第一轮的回答')
+    expect(prompt).toContain('第二轮的问题')
+  })
+
+  it('换路径追问时上文仍在（路径不影响过滤）', async () => {
+    // 要测「换路径」就得有两条真实存在的路径——pathId 必须在这条记录的 result 里，
+    // 否则会被 pathIdInRecord 正确地挡成 404
+    const twoPathBundle: KnowledgeBundle = {
+      ...bundle,
+      paths: [
+        ...bundle.paths,
+        {
+          id: 'second-path', title: '第二条路径', category: 'academic',
+          span: 'same-discipline', status: 'verified', summary: '',
+          weights: [], eligibility: [],
+        },
+      ],
+    }
+    const model = mockModel('回答')
+    const store = openStore(':memory:')
+    const { app, cookie } = await authedApp(twoPathBundle, { model, store })
+    const assessmentId = await diagnoseOnce(app, cookie)
+
+    const first = await post(app, '/api/chat', {
+      assessmentId, pathId: 'same-discipline-baoyan', question: '在保研页问的',
+    }, cookie)
+    await first.text()
+    await vi.waitFor(() => expect(model.doStreamCalls.length).toBe(1))
+
+    const second = await post(app, '/api/chat', {
+      assessmentId, pathId: 'second-path', question: '换页后问的',
+    }, cookie)
+    expect(second.status).toBe(200)
+    await second.text()
+
+    expect(JSON.stringify(model.doStreamCalls[1]!.prompt)).toContain('在保研页问的')
+  })
+})
+
+describe('GET /api/chat/history', () => {
+  it('返回本人的对话轮次，按时间正序', async () => {
+    const store = openStore(':memory:')
+    const { app, cookie, userId } = await authedApp(bundle, { model: mockModel('回答'), store })
+    const assessmentId = await diagnoseOnce(app, cookie)
+    await (await post(app, '/api/chat', {
+      assessmentId, pathId: 'same-discipline-baoyan', question: '问题',
+    }, cookie)).text()
+
+    await vi.waitFor(() => expect(store.recentTurns(userId, assessmentId, 20)).toHaveLength(2))
+
+    const res = await app.request('/api/chat/history', { headers: { cookie } })
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as { turns: Array<{ role: string; content: string }> }
+    expect(body.turns.map(t => t.role)).toEqual(['user', 'assistant'])
+    expect(body.turns[0]!.content).toBe('问题')
+  })
+
+  it('不带会话 cookie 返回 401', async () => {
+    const { app } = await authedApp()
+    expect((await app.request('/api/chat/history')).status).toBe(401)
   })
 })
 
