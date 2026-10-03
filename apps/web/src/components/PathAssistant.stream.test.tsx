@@ -22,6 +22,23 @@ function textResponse(text: string) {
   }
 }
 
+function jsonResponse(body: unknown) {
+  return { ok: true, status: 200, json: async () => body, text: async () => '' }
+}
+
+/**
+ * 挂载时会并发打两个端点：解读是纯文本流，对话历史是 JSON。
+ * 不按 URL 分支的话，历史那条会拿到纯文本、解析失败——虽然被组件里的 catch
+ * 吞掉了，但那是侥幸通过，不是真的对。
+ */
+function stubFetchByUrl(interpretText: string) {
+  vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
+    const url = String(input)
+    if (url.includes('/api/chat/history')) return jsonResponse({ turns: [] })
+    return textResponse(interpretText)
+  }))
+}
+
 const base = { assessmentId: 'a1' }
 
 afterEach(() => {
@@ -30,7 +47,7 @@ afterEach(() => {
 
 describe('PathAssistant 与真实 useCompletion 的接缝', () => {
   it('把后端的纯文本流渲染成解读正文', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => textResponse('保研是时间窗最紧的一条路。')))
+    stubFetchByUrl('保研是时间窗最紧的一条路。')
 
     render(<PathAssistant {...base} pathId="same-discipline-baoyan" />)
 

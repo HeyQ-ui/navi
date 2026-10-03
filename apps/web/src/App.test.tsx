@@ -1,7 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { fetchAssessment, fetchAssessments, fetchMe, fetchQuestions, postDiagnose, logout } from './api.js'
+import {
+  fetchAssessment, fetchAssessments, fetchChatHistory, fetchMe, fetchQuestions, logout, postDiagnose,
+} from './api.js'
 import { App } from './App.js'
 
 vi.mock('./api.js', () => ({
@@ -12,6 +14,8 @@ vi.mock('./api.js', () => ({
   logout: vi.fn(),
   fetchAssessments: vi.fn(),
   fetchAssessment: vi.fn(),
+  fetchChatHistory: vi.fn(),
+  buildChatBody: vi.fn(),
 }))
 
 /** 渲染并等到「已登录、停在选择测评对象」这一步；后续用例各自决定往哪走 */
@@ -25,6 +29,9 @@ beforeEach(() => {
   vi.mocked(fetchMe).mockReset()
   vi.mocked(fetchQuestions).mockReset()
   vi.mocked(postDiagnose).mockReset()
+  vi.mocked(fetchChatHistory).mockReset()
+  // 追问区挂载时会拉历史；缺这个默认值会让整棵树炸在 undefined.then 上
+  vi.mocked(fetchChatHistory).mockResolvedValue([])
 })
 
 describe('App · 登录门槛（spec §4.3）', () => {

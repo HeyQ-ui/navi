@@ -122,3 +122,40 @@ export async function fetchAssessment(id: string): Promise<AssessmentDetail> {
   const res = await fetch(`/api/assessments/${encodeURIComponent(id)}`)
   return (await jsonOrThrow(res, '获取测评记录')) as AssessmentDetail
 }
+
+export interface ChatMessage {
+  id: string
+  role: 'user' | 'assistant'
+  parts: Array<{ type: 'text'; text: string }>
+}
+
+/** 账号级对话历史。服务端按来源过滤，前端只是显示者 */
+export async function fetchChatHistory(): Promise<ChatMessage[]> {
+  const res = await fetch('/api/chat/history')
+  const body = (await jsonOrThrow(res, '获取对话历史')) as {
+    turns: Array<{ id: string; role: 'user' | 'assistant'; content: string }>
+  }
+  return body.turns.map(turn => ({
+    id: turn.id,
+    role: turn.role,
+    parts: [{ type: 'text' as const, text: turn.content }],
+  }))
+}
+
+/**
+ * 只发本轮问题。历史由服务端持有，客户端上传的那份它一概不看——
+ * 把整段历史传上去既多传了数据，又给了伪造的机会。
+ */
+export function buildChatBody(input: {
+  assessmentId: string
+  pathId: string
+  messages: ChatMessage[]
+}): { assessmentId: string; pathId: string; question: string } {
+  const last = input.messages[input.messages.length - 1]
+  const question = (last?.parts ?? [])
+    .filter((p): p is { type: 'text'; text: string } => p.type === 'text')
+    .map(p => p.text)
+    .join('')
+    .trim()
+  return { assessmentId: input.assessmentId, pathId: input.pathId, question }
+}

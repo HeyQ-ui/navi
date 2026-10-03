@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 
 vi.mock('@ai-sdk/react', () => ({
   useCompletion: vi.fn(),
@@ -8,6 +8,9 @@ vi.mock('@ai-sdk/react', () => ({
 
 import { useChat, useCompletion } from '@ai-sdk/react'
 import { PathAssistant } from './PathAssistant.js'
+
+/** setMessages 要能被断言「历史被灌进去了」，所以提到外面 */
+const setMessages = vi.fn()
 
 /** 把两个 hook 的返回值设成想要的形状；只关心被测组件读取的字段 */
 function stub(overrides: {
@@ -23,6 +26,7 @@ function stub(overrides: {
   } as never)
   vi.mocked(useChat).mockReturnValue({
     messages: overrides.messages ?? [],
+    setMessages,
     sendMessage: vi.fn(),
     status: 'ready',
     error: undefined,
@@ -84,5 +88,25 @@ describe('PathAssistant', () => {
     render(<PathAssistant {...base} pathId="same-discipline-baoyan" />)
     expect(screen.getByText(/保研和考研怎么选？/)).toBeInTheDocument()
     expect(screen.getByText(/两者时间窗不同。/)).toBeInTheDocument()
+  })
+})
+
+describe('PathAssistant · 账号级对话（专项 §11.3）', () => {
+  it('挂载时从服务端拉历史并灌进对话区', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify({
+      turns: [
+        { id: 'm1', role: 'user', content: '上一次聊过的问题', createdAt: '2026-01-01T00:00:00.000Z' },
+        { id: 'm2', role: 'assistant', content: '上一次的回答', createdAt: '2026-01-01T00:00:01.000Z' },
+      ],
+    }), { status: 200 }))
+
+    render(<PathAssistant assessmentId="a1" pathId="p1" />)
+
+    // 断言 setMessages 被灌了历史：mock 的 messages 是静态值，渲染断言在这里
+    // 测不到东西——真正要钉的是「历史从服务端来，且换路径时重新拉」
+    await waitFor(() => expect(setMessages).toHaveBeenCalledWith([
+      { id: 'm1', role: 'user', parts: [{ type: 'text', text: '上一次聊过的问题' }] },
+      { id: 'm2', role: 'assistant', parts: [{ type: 'text', text: '上一次的回答' }] },
+    ]))
   })
 })

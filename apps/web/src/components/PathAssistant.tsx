@@ -1,9 +1,11 @@
 import { useEffect, useMemo } from 'react'
 import { useChat, useCompletion } from '@ai-sdk/react'
 import { DefaultChatTransport } from 'ai'
+import { buildChatBody, fetchChatHistory } from '../api.js'
+import type { ChatMessage } from '../api.js'
 
 interface Props {
-  /** 解读与追问都锚在这条测评记录上——服务端据此从自己的库取答案（spec §4.2） */
+  /** 解读锚在这条测评记录上——服务端据此从自己的库取答案（spec §4.2） */
   assessmentId: string
   pathId: string
   /** 历史详情带回来的解读。有值就直接显示，不再重新生成（spec §5.2） */
@@ -11,10 +13,11 @@ interface Props {
 }
 
 /**
- * 解读 + 追问，都锚在「本路径」上（设计文档 §8.5）。
+ * 解读 + 追问。
  *
- * 换路径时由父组件改 key 触发重新挂载，因此这里不必手写重置逻辑——
- * 上一路径的解读文字与对话历史随卸载一起消失。
+ * 解读锚在「本路径」上（设计文档 §8.5）：换路径时由父组件改 key 触发重新挂载，
+ * 解读随之重来。**追问不同**——它是账号级的一条连续流（专项 §11.3），换路径、
+ * 换测评、下次登录都接着上文，所以对话是通过接口读回来的，不随挂载清空。
  */
 export function PathAssistant({ assessmentId, pathId, interpretation }: Props) {
   const hasStored = interpretation !== undefined && interpretation !== null
@@ -30,13 +33,20 @@ export function PathAssistant({ assessmentId, pathId, interpretation }: Props) {
     body: { assessmentId, pathId },
   })
 
-  // v7 的 useChat 不再接受 api 选项，改为显式 transport
+  // v7 的 useChat 不再接受 api 选项，改为显式 transport。
+  // prepareSendMessagesRequest 让请求体只带本轮问题——历史在服务端手里，
+  // 客户端上传的那份它一概不看（专项 §11.3）。
   const transport = useMemo(
-    () => new DefaultChatTransport({ api: '/api/chat', body: { assessmentId, pathId } }),
+    () => new DefaultChatTransport({
+      api: '/api/chat',
+      prepareSendMessagesRequest: ({ messages: sent }) => ({
+        body: buildChatBody({ assessmentId, pathId, messages: sent as ChatMessage[] }),
+      }),
+    }),
     [assessmentId, pathId],
   )
   const {
-    messages, sendMessage, status, error: chatError,
+    messages, setMessages, sendMessage, status, error: chatError,
   } = useChat({ transport })
 
   useEffect(() => {
@@ -45,6 +55,16 @@ export function PathAssistant({ assessmentId, pathId, interpretation }: Props) {
     if (hasStored) return
     void complete('')
   }, [pathId, hasStored])
+
+  useEffect(() => {
+    // 对话是账号级的：换路径、换测评、下次登录都读同一条流，所以每次挂载都重新拉。
+    // 拉失败不阻断追问——用户照样能问，只是看不到上文。
+    let cancelled = false
+    void fetchChatHistory()
+      .then(history => { if (!cancelled) setMessages(history) })
+      .catch(() => undefined)
+    return () => { cancelled = true }
+  }, [assessmentId, setMessages])
 
   const text = hasStored ? interpretation : completion
 
@@ -60,6 +80,9 @@ export function PathAssistant({ assessmentId, pathId, interpretation }: Props) {
       )}
 
       <h2 className="mb-2 mt-6 text-lg font-semibold">追问</h2>
+      <p className="mb-2 text-sm text-gray-500">
+        你们之前的对话都在这里，换路径、换一次测评也会接着上文。
+      </p>
       <ul className="mb-3 space-y-2">
         {messages.map(message => (
           <li key={message.id} className="text-sm">
