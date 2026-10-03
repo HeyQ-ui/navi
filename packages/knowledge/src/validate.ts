@@ -9,11 +9,14 @@ export interface IndicatorDef {
 
 export interface QuestionDef {
   id: string
-  indicator: string
+  /** 单指标题：各选项按五档位置映射到该指标。带 scores 的多指标题不写这个字段 */
+  indicator?: string
   text: string
   options: string[]
   weight: number
   grades?: string[]
+  /** 每选项对若干指标的分值；某选项没写某指标 = 这道题对该指标没有信息 */
+  scores?: Record<string, number>[]
 }
 
 export interface ArchetypeDef {
@@ -70,6 +73,13 @@ export function validateKnowledge(bundle: KnowledgeBundle): string[] {
   const indicatorIds = new Set(bundle.indicators.map(i => i.id))
 
   for (const indicator of bundle.indicators) {
+    // 多指标题（带 scores）由一道题同时供给多个指标，「至少 3 道」对这类指标不适用：
+    // 一道题既要当保研意愿又要当考研意愿，按 3 道题要求它就成了不可能满足的条件
+    const suppliedByMulti = bundle.questions.some(
+      q => q.scores?.some(optionScores => optionScores[indicator.id] !== undefined) === true,
+    )
+    if (suppliedByMulti) continue
+
     const count = bundle.questions.filter(q => q.indicator === indicator.id).length
     if (count < MIN_QUESTIONS_PER_INDICATOR) {
       warnings.push(
@@ -79,11 +89,30 @@ export function validateKnowledge(bundle: KnowledgeBundle): string[] {
   }
 
   for (const question of bundle.questions) {
-    if (!indicatorIds.has(question.indicator)) {
-      warnings.push(`题目 ${question.id} 引用了不存在的指标 ${question.indicator}`)
+    if (question.scores === undefined) {
+      if (question.indicator === undefined) {
+        warnings.push(`题目 ${question.id} 既没有 indicator 也没有 scores`)
+      } else if (!indicatorIds.has(question.indicator)) {
+        warnings.push(`题目 ${question.id} 引用了不存在的指标 ${question.indicator}`)
+      }
+      // 选项数只在走五档位置映射时才必须是 5：显式给了 scores 的题，选项数由它自己定
+      if (question.options.length !== 5) {
+        warnings.push(`题目 ${question.id} 有 ${question.options.length} 个选项，应为 5 个（设计文档 §5.2）`)
+      }
+      continue
     }
-    if (question.options.length !== 5) {
-      warnings.push(`题目 ${question.id} 有 ${question.options.length} 个选项，应为 5 个（设计文档 §5.2）`)
+
+    if (question.scores.length !== question.options.length) {
+      warnings.push(
+        `题目 ${question.id} 的 scores 有 ${question.scores.length} 项，与 ${question.options.length} 个选项不一致`,
+      )
+    }
+    for (const optionScores of question.scores) {
+      for (const id of Object.keys(optionScores)) {
+        if (!indicatorIds.has(id)) {
+          warnings.push(`题目 ${question.id} 的 scores 引用了不存在的指标 ${id}`)
+        }
+      }
     }
   }
 

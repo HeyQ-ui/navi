@@ -46,6 +46,50 @@ describe('validateKnowledge', () => {
     expect(warnings.some(w => w.includes('not-exist'))).toBe(true)
   })
 
+  it('带 scores 的题不受「必须 5 个选项」约束', () => {
+    const warnings = validateKnowledge(bundle({
+      questions: [{
+        id: 'grad-intention-1', text: '？', weight: 1,
+        options: ['保研', '考研', '不读研', '还没想好'],
+        scores: [
+          { 'grad-intention-baoyan': 100, 'grad-intention-kaoyan': 0 },
+          { 'grad-intention-baoyan': 0, 'grad-intention-kaoyan': 100 },
+          {}, {},
+        ],
+      }],
+      indicators: [
+        { id: 'academic-interest', name: '学术志趣' },
+        { id: 'grad-intention-baoyan', name: '保研意愿' },
+        { id: 'grad-intention-kaoyan', name: '考研意愿' },
+      ],
+    }))
+    expect(warnings.join()).not.toContain('个选项')
+  })
+
+  it('scores 与 options 长度不一致时给出警告', () => {
+    const warnings = validateKnowledge(bundle({
+      questions: [{
+        id: 'grad-intention-1', text: '？', weight: 1,
+        options: ['a', 'b', 'c'],
+        scores: [{ 'grad-intention-baoyan': 1 }, { 'grad-intention-baoyan': 2 }],
+      }],
+      indicators: [{ id: 'grad-intention-baoyan', name: '保研意愿' }],
+    }))
+    expect(warnings.join()).toContain('scores')
+  })
+
+  it('只有多指标题的指标豁免「至少 3 道题」', () => {
+    const warnings = validateKnowledge(bundle({
+      questions: [{
+        id: 'grad-intention-1', text: '？', weight: 1,
+        options: ['a', 'b', 'c', 'd'],
+        scores: [{ 'grad-intention-baoyan': 100 }, {}, {}, {}],
+      }],
+      indicators: [{ id: 'grad-intention-baoyan', name: '保研意愿' }],
+    }))
+    expect(warnings.join()).not.toContain('少于要求的')
+  })
+
   it('路径权重引用了不存在的指标时给出警告', () => {
     const b = bundle()
     b.paths[0]!.weights[0]!.indicator = 'not-exist'
