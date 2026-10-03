@@ -41,7 +41,7 @@ const bundle: KnowledgeBundle = {
 const result: DiagnosisResult = {
   indicators: {
     'academic-interest': { score: 82, known: true, consistency: 0.9, sources: ['q1'] },
-    'gpa-competitiveness': { score: 40, known: true, consistency: 0.5, sources: ['q2'] },
+    'discipline-identity': { score: 40, known: true, consistency: 0.5, sources: ['q2'] },
   },
   paths: [
     {

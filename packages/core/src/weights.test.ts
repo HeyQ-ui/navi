@@ -11,7 +11,7 @@ function unknown(): IndicatorScore {
 
 const weights: PathWeight[] = [
   { indicator: 'academic-interest', weight: 0.25, ideal: 85 },
-  { indicator: 'gpa-competitiveness', weight: 0.35, ideal: 90 },
+  { indicator: 'discipline-identity', weight: 0.35, ideal: 90 },
   { indicator: 'risk-preference', weight: 0.40, ideal: 75 },
 ]
 
@@ -19,7 +19,7 @@ describe('normalizeWeights', () => {
   it('全部已知时权重保持不变', () => {
     const { entries } = normalizeWeights(weights, {
       'academic-interest': known(),
-      'gpa-competitiveness': known(),
+      'discipline-identity': known(),
       'risk-preference': known(),
     })
     expect(entries.map(e => e.weight)).toEqual([0.25, 0.35, 0.40])
@@ -28,7 +28,7 @@ describe('normalizeWeights', () => {
   it('部分未知时剩余权重按比例放大且总和为 1', () => {
     const { entries } = normalizeWeights(weights, {
       'academic-interest': known(),
-      'gpa-competitiveness': known(),
+      'discipline-identity': known(),
       'risk-preference': unknown(),
     })
     const total = entries.reduce((s, e) => s + e.weight, 0)
@@ -39,7 +39,7 @@ describe('normalizeWeights', () => {
   it('未知指标被排除在结果之外', () => {
     const { entries } = normalizeWeights(weights, {
       'academic-interest': known(),
-      'gpa-competitiveness': unknown(),
+      'discipline-identity': unknown(),
       'risk-preference': unknown(),
     })
     expect(entries).toHaveLength(1)
@@ -49,7 +49,7 @@ describe('normalizeWeights', () => {
   it('全部未知时返回空数组，不产生 NaN', () => {
     const { entries } = normalizeWeights(weights, {
       'academic-interest': unknown(),
-      'gpa-competitiveness': unknown(),
+      'discipline-identity': unknown(),
       'risk-preference': unknown(),
     })
     expect(entries).toEqual([])

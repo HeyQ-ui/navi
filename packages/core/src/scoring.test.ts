@@ -74,6 +74,64 @@ describe('computeIndicatorScores', () => {
   })
 })
 
+describe('一题多指标（scores 字段）', () => {
+  const intentionIndicators: IndicatorDef[] = [
+    { id: 'grad-intention-baoyan', name: '保研意愿' },
+    { id: 'grad-intention-kaoyan', name: '考研意愿' },
+  ]
+
+  const intention: Question = {
+    id: 'grad-intention-1',
+    text: '毕业后的去向？',
+    options: ['保研', '考研', '不读研', '还没想好'],
+    weight: 1,
+    scores: [
+      { 'grad-intention-baoyan': 100, 'grad-intention-kaoyan': 0 },
+      { 'grad-intention-baoyan': 0, 'grad-intention-kaoyan': 100 },
+      { 'grad-intention-baoyan': 0, 'grad-intention-kaoyan': 0 },
+      {},
+    ],
+  }
+
+  it('按选项给出各指标的分值', () => {
+    const s = computeIndicatorScores({ 'grad-intention-1': 1 }, [intention], intentionIndicators)
+    expect(s['grad-intention-baoyan']!.score).toBe(0)
+    expect(s['grad-intention-kaoyan']!.score).toBe(100)
+    expect(s['grad-intention-kaoyan']!.sources).toEqual(['grad-intention-1'])
+  })
+
+  it('「不读研」两条路径都得 0 分', () => {
+    const s = computeIndicatorScores({ 'grad-intention-1': 2 }, [intention], intentionIndicators)
+    expect(s['grad-intention-baoyan']!.score).toBe(0)
+    expect(s['grad-intention-baoyan']!.known).toBe(true)
+    expect(s['grad-intention-kaoyan']!.score).toBe(0)
+    expect(s['grad-intention-kaoyan']!.known).toBe(true)
+  })
+
+  it('「还没想好」不产生分值，指标未已知', () => {
+    const s = computeIndicatorScores({ 'grad-intention-1': 3 }, [intention], intentionIndicators)
+    expect(s['grad-intention-baoyan']!.known).toBe(false)
+    expect(s['grad-intention-kaoyan']!.known).toBe(false)
+  })
+
+  it('越界选项视为未作答', () => {
+    const s = computeIndicatorScores({ 'grad-intention-1': 9 }, [intention], intentionIndicators)
+    expect(s['grad-intention-baoyan']!.known).toBe(false)
+  })
+
+  it('4 选项题不会拿五档表去索引', () => {
+    const four: Question = {
+      id: 'four-1',
+      text: '？',
+      options: ['a', 'b', 'c', 'd'],
+      weight: 1,
+      scores: [{}, {}, {}, {}],
+    }
+    const s = computeIndicatorScores({ 'four-1': 3 }, [four], intentionIndicators)
+    expect(s['grad-intention-baoyan']!.known).toBe(false)
+  })
+})
+
 describe('consistencyOf 边界', () => {
   it('全部同分时一致性为 1', () => {
     expect(consistencyOf([50, 50, 50])).toBe(1)

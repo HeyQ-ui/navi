@@ -8,7 +8,7 @@ function s(score: number, consistency = 1): IndicatorScore {
 
 const weights: PathWeight[] = [
   { indicator: 'academic-interest', weight: 0.5, ideal: 100 },
-  { indicator: 'gpa-competitiveness', weight: 0.5, ideal: 100 },
+  { indicator: 'discipline-identity', weight: 0.5, ideal: 100 },
 ]
 
 describe('indicatorMatch', () => {
@@ -30,7 +30,7 @@ describe('indicatorMatch', () => {
 describe('computePathMatch', () => {
   it('全部命中理想值时匹配度为 100', () => {
     const r = computePathMatch(
-      { 'academic-interest': s(100), 'gpa-competitiveness': s(100) },
+      { 'academic-interest': s(100), 'discipline-identity': s(100) },
       weights,
     )
     expect(r.match).toBeCloseTo(100, 10)
@@ -38,7 +38,7 @@ describe('computePathMatch', () => {
 
   it('按权重汇总各项贡献之和等于总分', () => {
     const r = computePathMatch(
-      { 'academic-interest': s(80), 'gpa-competitiveness': s(60) },
+      { 'academic-interest': s(80), 'discipline-identity': s(60) },
       weights,
     )
     const sum = r.contributions.reduce((acc, c) => acc + c.contribution, 0)
@@ -48,7 +48,7 @@ describe('computePathMatch', () => {
 
   it('置信度是一致性按权重的加权平均', () => {
     const r = computePathMatch(
-      { 'academic-interest': s(80, 1.0), 'gpa-competitiveness': s(60, 0.5) },
+      { 'academic-interest': s(80, 1.0), 'discipline-identity': s(60, 0.5) },
       weights,
     )
     expect(r.confidence).toBeCloseTo(0.75, 10)
@@ -58,7 +58,7 @@ describe('computePathMatch', () => {
     const r = computePathMatch(
       {
         'academic-interest': s(80),
-        'gpa-competitiveness': { score: 0, known: false, consistency: 0, sources: [] },
+        'discipline-identity': { score: 0, known: false, consistency: 0, sources: [] },
       },
       weights,
     )
@@ -70,7 +70,7 @@ describe('computePathMatch', () => {
     const r = computePathMatch(
       {
         'academic-interest': { score: 0, known: false, consistency: 0, sources: [] },
-        'gpa-competitiveness': { score: 0, known: false, consistency: 0, sources: [] },
+        'discipline-identity': { score: 0, known: false, consistency: 0, sources: [] },
       },
       weights,
     )
@@ -81,7 +81,7 @@ describe('computePathMatch', () => {
 
   it('每个 contribution 的 weight 都是重归一化后的值，总和为 1', () => {
     const r = computePathMatch(
-      { 'academic-interest': s(80), 'gpa-competitiveness': s(60) },
+      { 'academic-interest': s(80), 'discipline-identity': s(60) },
       weights,
     )
     const total = r.contributions.reduce((acc, c) => acc + c.weight, 0)

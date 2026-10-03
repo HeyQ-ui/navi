@@ -1,12 +1,14 @@
 export type IndicatorId =
   | 'academic-interest'
-  | 'gpa-competitiveness'
   | 'discipline-identity'
   | 'cost-tolerance'
   | 'risk-preference'
   | 'stress-endurance'
   | 'public-affairs-leaning'
   | 'accumulation-drive'
+  | 'grad-intention-baoyan'
+  | 'grad-intention-kaoyan'
+  | 'grad-intention-none'
 
 export type PathId = string
 
@@ -65,11 +67,14 @@ export interface DiagnosisResult {
 
 export interface Question {
   id: string
-  indicator: IndicatorId
+  /** 单指标题：各选项按五档位置映射到该指标。带 scores 的多指标题不写这个字段 */
+  indicator?: IndicatorId
   text: string
   options: string[]
   weight: number
   grades?: string[]
+  /** 每选项对若干指标的分值；某选项没写某指标 = 这道题对该指标没有信息 */
+  scores?: Record<string, number>[]
 }
 
 export interface IndicatorDef {
