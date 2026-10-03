@@ -31,6 +31,10 @@ docs/superpowers/specs/2026-09-27-navi-career-planning-agent-design.md
 该文档是唯一的设计真相源。本文件只是索引与硬约束，**不复制其内容**——
 设计变更只改设计文档，不要在本文件中重述设计。
 
+账号、会话、测评记录留存，以及上下文与用户的绑定，另有专项设计：
+`docs/superpowers/specs/2026-10-02-navi-account-storage-design.md`
+（主文档 §3.4、§4.2、§8.2 指向它）。**动这几块时两份都要读。**
+
 ### 章节索引
 
 | 你要做什么 | 读哪节 |
@@ -91,16 +95,31 @@ apps/web            ←  只消费 HTTP 接口
 
 ## 开发命令
 
-项目尚未初始化（当前仅有设计文档）。
-
-依赖安装完成后，在此补充：
-
 ```bash
 pnpm install      # 安装依赖
-pnpm dev          # 并行启动 api 与 web
-pnpm test         # 运行 core 单元测试
-pnpm build        # 构建
+pnpm dev          # 并行启动 api（:3000）与 web（:5173），前端由 vite 代理 /api
+pnpm test         # 先编译知识库，再跑全部包的测试
+pnpm lint         # 全部包 lint
+pnpm build        # 全部包构建 / 类型检查
 ```
+
+单包：`pnpm --filter @navi/<包名> test|build|lint`（包名 `knowledge` / `core` / `llm` / `api` / `web`）。
+
+**首次运行前**：复制 `.env.example` 为 `.env`，填 `DEEPSEEK_API_KEY` 与 `JWT_SECRET`。
+`.env` 只在服务端读（硬性约束 4）。两项留空的后果是**降级而非崩溃**：缺 API Key →
+解读与追问返回 503，结构化结果完整可用；缺 JWT_SECRET → 账号与受保护端点一律 503。
+
+**两条与「改了东西但没生效」有关的坑**，排查时先看这两处：
+
+1. **改知识库内容要重新构建。** 题目、选项、权重改完必须
+   `pnpm --filter @navi/knowledge build` 才会生成 `packages/knowledge/dist/knowledge.json`；
+   api 读的是这份产物。dev 下产物一变 api 会自动重启（dev 脚本带 `--include`），
+   但 yaml 本身不在 watch 范围内。`pnpm test` 会自动先构建一次。
+2. **端口被陈旧 dev 进程占着时，重启会静默失效。** 抢不到端口的新进程立刻以
+   `EADDRINUSE` 崩掉，而它的 `tsx watch` 监督进程还活着——看起来重启过了，实际一直是
+   旧进程在服务（症状：改过 `.env` 后显示「暂不可用」，改过题面后页面还是旧题目）。
+   先查占用者的启动时间，不要先怀疑 `.env` 或浏览器缓存：
+   `netstat -ano | grep LISTENING | grep -E ":(3000|5173)"`，必要时清掉全部 `tsx watch` 进程再起。
 
 ---
 
@@ -112,3 +131,5 @@ pnpm build        # 构建
 - 设计文档中标注为「**待验证项**」或「**后续迭代**」的内容，**不要在 MVP 阶段实现**。
 - 若发现设计文档与实际代码不一致，**指出矛盾，不要擅自选择一方**。
 - 提交信息使用中文，遵循 Conventional Commits（`feat:` / `fix:` / `docs:` / `chore:` 等）。
+- **提交前 `pnpm test` 与 `pnpm lint` 都要绿。** 改到题目、选项、路径权重时，还要确认
+  知识库编译 0 告警、黄金案例集已同步（硬性约束 5）。
