@@ -112,6 +112,12 @@ describe('buildKnowledge · 路径文档的块结构（设计文档 §6.3 v1.5�
     const blocks = buildKnowledge().blocks['same-discipline-kaoyan']!
     expect(blocks.map(b => b.type)).toEqual(['timeline', 'guide', 'myth', 'cost', 'risk'])
   })
+
+  it('跨学科保研：没有 cost 块也不影响其余块（块类型契约不强制字段）', () => {
+    const blocks = buildKnowledge().blocks['cross-discipline-baoyan']!
+    expect(blocks.map(b => b.type)).toEqual(['timeline', 'guide', 'myth', 'myth', 'risk'])
+    expect(blocks.filter(b => b.type === 'myth')).toHaveLength(2)
+  })
 })
 
 describe('buildKnowledge · 通用知识（设计文档 §6.1 v1.5）', () => {
