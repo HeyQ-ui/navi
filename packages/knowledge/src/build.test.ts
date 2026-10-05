@@ -118,6 +118,11 @@ describe('buildKnowledge · 路径文档的块结构（设计文档 §6.3 v1.5�
     expect(blocks.map(b => b.type)).toEqual(['timeline', 'guide', 'myth', 'myth', 'risk'])
     expect(blocks.filter(b => b.type === 'myth')).toHaveLength(2)
   })
+
+  it('跨学科考研：timeline / guide / myth / cost / risk 齐备且顺序固定', () => {
+    const blocks = buildKnowledge().blocks['cross-discipline-kaoyan']!
+    expect(blocks.map(b => b.type)).toEqual(['timeline', 'guide', 'myth', 'cost', 'risk'])
+  })
 })
 
 describe('buildKnowledge · 通用知识（设计文档 §6.1 v1.5）', () => {
