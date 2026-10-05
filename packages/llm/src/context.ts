@@ -213,7 +213,7 @@ export function buildSystemContent(slice: KnowledgeSlice): string {
   const currentTitle =
     slice.bundle.paths.find(p => p.id === slice.pathId)?.title ?? slice.pathId
 
-  // 两段都是条件插入：没有内容时整段不出现，而不是留一个空标题
+  // 三段都是条件插入：没有内容时整段不出现，而不是留一个空标题
   const historyBlock = formatHistory(slice)
   const conversationBlock = formatConversation(slice)
   const commonBlock = formatCommon(slice)

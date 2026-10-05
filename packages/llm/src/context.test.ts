@@ -171,6 +171,7 @@ describe('buildSystemContent', () => {
 describe('上下文 · 通用知识（设计文档 §8.5 v1.5）', () => {
   it('带上通用知识，且保留块标题（标题是内容）', () => {
     const content = buildSystemContent(knowledge)
+    expect(content).toContain('## 通用知识（跨路径共用）')
     expect(content).toContain('目标真空、盲目跟风')
     expect(content).toContain('随大流决定考研或考公')
     expect(content).toContain('五条路径差异对比')
@@ -182,9 +183,7 @@ describe('上下文 · 通用知识（设计文档 §8.5 v1.5）', () => {
 
   it('没有通用知识时整段不出现，而不是留一个空标题', () => {
     const noCommon = { ...knowledge, bundle: { ...bundle, common: [] } }
-    const content = buildSystemContent(noCommon)
-    expect(content).not.toContain('通用知识')
-    expect(content).not.toContain('（无）')
+    expect(buildSystemContent(noCommon)).not.toContain('## 通用知识')
   })
 })
 
