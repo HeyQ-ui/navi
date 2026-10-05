@@ -129,11 +129,6 @@ describe('buildKnowledge · 路径文档的块结构（设计文档 §6.3 v1.5�
     expect(blocks.map(b => b.type)).toEqual(['timeline', 'guide', 'myth', 'cost', 'risk'])
   })
 
-  it('两条就业路径本计划不动，仍只有它们原有的块', () => {
-    const blocks = buildKnowledge().blocks
-    expect(blocks['same-discipline-job']!.some(b => b.type === 'guide')).toBe(false)
-    expect(blocks['cross-discipline-job']!.some(b => b.type === 'guide')).toBe(false)
-  })
 })
 
 describe('buildKnowledge · 通用知识（设计文档 §6.1 v1.5）', () => {
@@ -165,12 +160,30 @@ describe('buildKnowledge · 通用知识（设计文档 §6.1 v1.5）', () => {
     expect(blocks[0]!.raw).toBe('正文')
   })
 
-  it('真实的 common.md 解析出 6 条误区 + 2 张对比表（防止将来退化时无人报警）', () => {
+  it('真实的 common.md 解析出 7 条误区 + 2 张对比表（防止将来退化时无人报警）', () => {
     const blocks = buildKnowledge().common
-    expect(blocks.filter(b => b.type === 'myth')).toHaveLength(6)
+    expect(blocks.filter(b => b.type === 'myth')).toHaveLength(7)
     expect(blocks.filter(b => b.type === 'compare')).toHaveLength(2)
     expect(blocks.every(b => b.title !== undefined)).toBe(true)
     expect(blocks.every(b => !b.raw.includes(':::'))).toBe(true)
+  })
+
+  it('对比表覆盖全部七条路径，不再声明「就业未纳入对比」', () => {
+    const [diff] = buildKnowledge().common.filter(b => b.type === 'compare')
+    for (const title of [
+      '本学科保研', '本学科考研', '跨学科保研', '跨学科考研', '考公考编', '本学科就业', '跨学科就业',
+    ]) {
+      expect(diff!.raw, title).toContain(title)
+    }
+    expect(diff!.raw).not.toContain('未纳入对比')
+  })
+
+  it('第 7 条误区是「就业准备误区」，与两条路径移除的 myth 内容对应', () => {
+    const myths = buildKnowledge().common.filter(b => b.type === 'myth')
+    expect(myths.map(b => b.title)).toContain('就业准备误区')
+    const block = myths.find(b => b.title === '就业准备误区')!
+    expect(block.raw).toContain('找工作是大四的事')
+    expect(block.raw).toContain('专业不对口')
   })
 
   it('对比表完整落进 raw，Markdown 表格行不被当成容器边界', () => {
