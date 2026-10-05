@@ -71,11 +71,15 @@ describe('buildKnowledge · 诚实边界', () => {
     expect(blocks[0]!.raw).toBe('我们无法给出可靠建议。')
   })
 
-  it('真实的 boundaries.md 解析出两条 boundary 块（防止将来退化时无人报警）', () => {
+  it('真实的 boundaries.md 解析出三条 boundary 块（防止将来退化时无人报警）', () => {
     const blocks = buildKnowledge().boundaries
-    expect(blocks).toHaveLength(2)
+    expect(blocks).toHaveLength(3)
     expect(blocks.every(b => b.type === 'boundary')).toBe(true)
-    expect(blocks.map(b => b.title)).toEqual(['topic="转专业政策"', 'topic="院校录取分数线预测"'])
+    expect(blocks.map(b => b.title)).toEqual([
+      'topic="转专业政策"',
+      'topic="院校录取分数线预测"',
+      'topic="考试时间节点的年度差异"',
+    ])
     expect(blocks.every(b => !b.raw.includes(':::'))).toBe(true)
   })
 })
