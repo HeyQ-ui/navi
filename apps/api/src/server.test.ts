@@ -49,6 +49,7 @@ const bundle: KnowledgeBundle = {
     eligibility: [],
   }],
   blocks: { 'same-discipline-baoyan': [{ type: 'timeline', html: '<p>时间线</p>', raw: '时间线' }] },
+  common: [],
   boundaries: [],
 }
 

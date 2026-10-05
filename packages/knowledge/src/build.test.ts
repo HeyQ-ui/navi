@@ -48,6 +48,7 @@ describe('buildKnowledge', () => {
     expect(bundle.paths).toEqual([])
     expect(bundle.indicators).toEqual([])
     expect(bundle.archetypes).toEqual([])
+    expect(bundle.common).toEqual([])
   })
 })
 
@@ -92,5 +93,35 @@ describe('buildKnowledge · 路径文档的标记不外泄（设计文档 §6.3 
     const cost = blocks.find(b => b.type === 'cost')!
     expect(myth.title).toBe('排名前 10% 就稳了')
     expect(cost.title).toBe('选择保研，需要放弃')
+  })
+})
+
+describe('buildKnowledge · 通用知识（设计文档 §6.1 v1.5）', () => {
+  it('根目录没有 common.md 时返回空数组', () => {
+    expect(buildKnowledge(makeTempRoot()).common).toEqual([])
+  })
+
+  it('解析 common.md 为逐条容器块，raw 里不带字面 :::', () => {
+    const root = makeTempRoot()
+    writeFileSync(
+      join(root, 'common.md'),
+      ':::myth 目标真空\n随大流决定考研或考公。\n:::\n\n:::compare 差异对比\n| A | B |\n|---|---|\n| 1 | 2 |\n:::\n',
+      'utf8',
+    )
+    const blocks = buildKnowledge(root).common
+    expect(blocks.map(b => b.type)).toEqual(['myth', 'compare'])
+    expect(blocks[0]!.title).toBe('目标真空')
+    expect(blocks[0]!.raw).toBe('随大流决定考研或考公。')
+    expect(blocks[1]!.raw).toContain('| 1 | 2 |')
+    expect(blocks.every(b => !b.raw.includes(':::') && !b.html.includes(':::'))).toBe(true)
+  })
+
+  it('内容侧写了一个全新块类型时不报错、不丢弃', () => {
+    const root = makeTempRoot()
+    writeFileSync(join(root, 'common.md'), ':::case 某个案例\n正文\n:::\n', 'utf8')
+    const blocks = buildKnowledge(root).common
+    expect(blocks).toHaveLength(1)
+    expect(blocks[0]!.type).toBe('case')
+    expect(blocks[0]!.raw).toBe('正文')
   })
 })

@@ -58,6 +58,13 @@ export function buildKnowledge(rootDir = ROOT): KnowledgeBundle {
   // 按 id 排序，使顺序与目录命名无关。「同样输入必然同样输出」依赖于此
   paths.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
 
+  // 通用知识（设计文档 §6.1 v1.5）。与 boundaries.md 同构的 `:::` 容器序列，
+  // 但不带 frontmatter——文件级元数据没有消费者（§6.2）
+  const commonPath = join(rootDir, 'common.md')
+  const common = existsSync(commonPath)
+    ? parseContainers(readFileSync(commonPath, 'utf8'))
+    : []
+
   // 诚实边界清单（设计文档 §8.4）。整个文件是 `:::boundary` 容器序列，
   // 走 parseContainers 而非 parseBlocks，每条边界各成一块且不带字面 `:::`
   const boundariesPath = join(rootDir, 'boundaries.md')
@@ -65,7 +72,7 @@ export function buildKnowledge(rootDir = ROOT): KnowledgeBundle {
     ? parseContainers(parseFrontmatter(readFileSync(boundariesPath, 'utf8')).content)
     : []
 
-  return { indicators, questions, archetypes, paths, blocks, boundaries }
+  return { indicators, questions, archetypes, paths, blocks, common, boundaries }
 }
 
 function main(): void {

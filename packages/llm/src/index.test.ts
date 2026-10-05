@@ -23,6 +23,7 @@ const bundle: KnowledgeBundle = {
   blocks: {
     'same-discipline-baoyan': [{ type: 'timeline', html: '<p>夏令营</p>', raw: '大三下夏令营' }],
   },
+  common: [],
   boundaries: [],
 }
 

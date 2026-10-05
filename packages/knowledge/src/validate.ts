@@ -61,6 +61,8 @@ export interface KnowledgeBundle {
   archetypes: ArchetypeDef[]
   paths: PathDef[]
   blocks: Record<string, Block[]>
+  /** 通用知识（设计文档 §6.1）。文件缺失时为空数组 */
+  common: Block[]
   /** 诚实边界清单（设计文档 §8.4）。文件缺失时为空数组 */
   boundaries: Block[]
 }
