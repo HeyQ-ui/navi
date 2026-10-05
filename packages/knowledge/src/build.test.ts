@@ -107,6 +107,11 @@ describe('buildKnowledge · 路径文档的块结构（设计文档 §6.3 v1.5�
     expect(blocks.find(b => b.type === 'guide')!.title).toBe('分时段行动建议')
     expect(blocks.find(b => b.type === 'risk')!.title).toBe('这条路的风险')
   })
+
+  it('本学科考研：timeline / guide / myth / cost / risk 齐备且顺序固定', () => {
+    const blocks = buildKnowledge().blocks['same-discipline-kaoyan']!
+    expect(blocks.map(b => b.type)).toEqual(['timeline', 'guide', 'myth', 'cost', 'risk'])
+  })
 })
 
 describe('buildKnowledge · 通用知识（设计文档 §6.1 v1.5）', () => {
