@@ -187,6 +187,16 @@ describe('上下文 · 通用知识（设计文档 §8.5 v1.5）', () => {
   })
 })
 
+describe('上下文 · 本路径没有内容块时', () => {
+  it('给出提示而不是留一段空白', () => {
+    const noBlocks = {
+      ...knowledge,
+      bundle: { ...bundle, blocks: { 'same-discipline-baoyan': [] } },
+    }
+    expect(buildSystemContent(noBlocks)).toContain('（这条路径暂无正文内容）')
+  })
+})
+
 describe('buildInterpretMessages', () => {
   it('第一条是 system，最后一条是 user 指令', () => {
     const messages = buildInterpretMessages({ knowledge, systemPrompt: '你是 Navi。' })
