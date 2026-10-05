@@ -124,4 +124,22 @@ describe('buildKnowledge · 通用知识（设计文档 §6.1 v1.5）', () => {
     expect(blocks[0]!.type).toBe('case')
     expect(blocks[0]!.raw).toBe('正文')
   })
+
+  it('真实的 common.md 解析出 6 条误区 + 2 张对比表（防止将来退化时无人报警）', () => {
+    const blocks = buildKnowledge().common
+    expect(blocks.filter(b => b.type === 'myth')).toHaveLength(6)
+    expect(blocks.filter(b => b.type === 'compare')).toHaveLength(2)
+    expect(blocks.every(b => b.title !== undefined)).toBe(true)
+    expect(blocks.every(b => !b.raw.includes(':::'))).toBe(true)
+  })
+
+  it('对比表完整落进 raw，Markdown 表格行不被当成容器边界', () => {
+    const tables = buildKnowledge().common.filter(b => b.type === 'compare')
+    // 先断言数量：没有这一条，common 为空时 for 循环空转，这个测试永远不会失败
+    expect(tables).toHaveLength(2)
+    for (const t of tables) {
+      expect(t.raw).toContain('|---')
+      expect(t.html).toContain('<table>')
+    }
+  })
 })
