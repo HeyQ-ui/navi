@@ -37,7 +37,7 @@ const bundle: KnowledgeBundle = {
   },
   common: [
     { type: 'myth', title: '目标真空、盲目跟风', html: '<p>随大流决定考研或考公</p>', raw: '随大流决定考研或考公' },
-    { type: 'compare', title: '五条路径差异对比', html: '<table></table>', raw: '| 对比维度 | 本学科保研 |' },
+    { type: 'compare', title: '七条路径差异对比', html: '<table></table>', raw: '| 对比维度 | 本学科保研 |' },
   ],
   boundaries: [{ type: 'free', html: '<p>转专业政策无法可靠回答</p>', raw: '转专业政策无法可靠回答' }],
 }
@@ -174,7 +174,7 @@ describe('上下文 · 通用知识（设计文档 §8.5 v1.5）', () => {
     expect(content).toContain('## 通用知识（跨路径共用）')
     expect(content).toContain('目标真空、盲目跟风')
     expect(content).toContain('随大流决定考研或考公')
-    expect(content).toContain('五条路径差异对比')
+    expect(content).toContain('七条路径差异对比')
   })
 
   it('通用知识里不带容器标记', () => {
