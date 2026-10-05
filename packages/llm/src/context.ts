@@ -220,7 +220,10 @@ export function buildSystemContent(slice: KnowledgeSlice): string {
 
   return [
     '<knowledge>',
-    '## 学生画像（8 个维度，0–100）',
+    // 维度数按实际渲染的条数生成。写死的常数已经过期过一次：v1.4 删掉
+    // gpa-competitiveness 后指标由 11 项降为 10 项，标题里的「8 个」留了下来，
+    // 与 §8.5 的「10 维分数」、§9.4 的「7 维雷达图（画像指标）」三方对不上
+    `## 学生画像（${Object.keys(slice.result.indicators).length} 个维度，0–100）`,
     formatIndicators(slice),
     '',
     '## 诊断结果',

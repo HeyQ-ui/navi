@@ -65,10 +65,16 @@ const knowledge = {
 }
 
 describe('buildSystemContent', () => {
-  it('带上全部 8 维分数', () => {
+  it('带上各维度分数', () => {
     const content = buildSystemContent(knowledge)
     expect(content).toContain('学术志趣')
     expect(content).toContain('82/100')
+  })
+
+  it('画像段的维度数按实际渲染的指标数生成，不写死一个会过期的常数', () => {
+    // 夹具的 result.indicators 有 2 项。写死「8 个维度」是 v1.4 删掉 gpa-competitiveness
+    // 时漏改的陈旧常量，与 §8.5 的「10 维分数」、§9.4 的「7 维雷达图」都对不上
+    expect(buildSystemContent(knowledge)).toContain('学生画像（2 个维度，0–100）')
   })
 
   it('不再带作答一致性（设计文档 §7.3）', () => {
