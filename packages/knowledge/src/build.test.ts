@@ -133,6 +133,18 @@ describe('buildKnowledge · 路径文档的块结构（设计文档 §6.3 v1.5�
     const blocks = buildKnowledge().blocks['same-discipline-job']!
     expect(blocks.map(b => b.type)).toEqual(['timeline', 'guide', 'cost', 'risk'])
   })
+
+  it('跨学科就业：timeline / guide / cost / risk，且已无 myth（v1.6）', () => {
+    const blocks = buildKnowledge().blocks['cross-discipline-job']!
+    expect(blocks.map(b => b.type)).toEqual(['timeline', 'guide', 'cost', 'risk'])
+  })
+
+  it('跨学科就业的时间线延伸到择业期，多这一行不丢内容（Review Focus 1）', () => {
+    const timeline = buildKnowledge().blocks['cross-discipline-job']!
+      .find(b => b.type === 'timeline')!
+    expect(timeline.raw).toContain('毕业后')
+    expect(timeline.raw).toContain('择业期')
+  })
 })
 
 describe('buildKnowledge · 通用知识（设计文档 §6.1 v1.5）', () => {
