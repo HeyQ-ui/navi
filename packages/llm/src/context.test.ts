@@ -35,7 +35,10 @@ const bundle: KnowledgeBundle = {
     ],
     'civil-service': [],
   },
-  common: [],
+  common: [
+    { type: 'myth', title: '目标真空、盲目跟风', html: '<p>随大流决定考研或考公</p>', raw: '随大流决定考研或考公' },
+    { type: 'compare', title: '五条路径差异对比', html: '<table></table>', raw: '| 对比维度 | 本学科保研 |' },
+  ],
   boundaries: [{ type: 'free', html: '<p>转专业政策无法可靠回答</p>', raw: '转专业政策无法可靠回答' }],
 }
 
@@ -156,6 +159,26 @@ describe('buildSystemContent', () => {
     const broken = { ...knowledge, answers: { ...knowledge.answers, q1: 99 } }
     expect(() => buildSystemContent(broken)).not.toThrow()
     expect(buildSystemContent(broken)).toContain('未作答')
+  })
+})
+
+describe('上下文 · 通用知识（设计文档 §8.5 v1.5）', () => {
+  it('带上通用知识，且保留块标题（标题是内容）', () => {
+    const content = buildSystemContent(knowledge)
+    expect(content).toContain('目标真空、盲目跟风')
+    expect(content).toContain('随大流决定考研或考公')
+    expect(content).toContain('五条路径差异对比')
+  })
+
+  it('通用知识里不带容器标记', () => {
+    expect(buildSystemContent(knowledge)).not.toContain(':::')
+  })
+
+  it('没有通用知识时整段不出现，而不是留一个空标题', () => {
+    const noCommon = { ...knowledge, bundle: { ...bundle, common: [] } }
+    const content = buildSystemContent(noCommon)
+    expect(content).not.toContain('通用知识')
+    expect(content).not.toContain('（无）')
   })
 })
 

@@ -1,5 +1,5 @@
 import { findTiedPaths } from '@navi/core'
-import type { Answers, DiagnosisResult, KnowledgeBundle, Question } from '@navi/core'
+import type { Answers, Block, DiagnosisResult, KnowledgeBundle, Question } from '@navi/core'
 import type { ModelMessage } from 'ai'
 
 export interface HistoryAssessment {
@@ -124,16 +124,32 @@ function formatQuestions(slice: KnowledgeSlice): string {
 }
 
 /**
- * 本路径的完整正文（按知识库顺序）。
- * 保留块标题——标题是内容（如「排名前 10% 就稳了」），被剥掉的只有 ::: 标记
- * 与块类型（设计文档 §6.3 第 4 条）。
+ * 块的渲染：保留块标题——标题是内容（如「排名前 10% 就稳了」「目标真空、盲目跟风」），
+ * 被剥掉的只有 ::: 标记与块类型（设计文档 §6.3 第 4 条）。
  */
-function formatCurrentPath(slice: KnowledgeSlice): string {
-  const blocks = slice.bundle.blocks[slice.pathId] ?? []
-  if (blocks.length === 0) return '（这条路径暂无正文内容）'
+function formatBlocks(blocks: Block[]): string {
   return blocks
     .map(b => (b.title === undefined ? b.raw : `**${b.title}**\n${b.raw}`))
     .join('\n\n')
+}
+
+/** 本路径的完整正文（按知识库顺序） */
+function formatCurrentPath(slice: KnowledgeSlice): string {
+  const blocks = slice.bundle.blocks[slice.pathId] ?? []
+  if (blocks.length === 0) return '（这条路径暂无正文内容）'
+  return formatBlocks(blocks)
+}
+
+/**
+ * 跨路径通用知识（设计文档 §8.5 v1.5）：新生误区与多路径对比。
+ *
+ * 返回 null 而非「（无）」是刻意的：空的时候整段不出现，与历次自我测评、此前的
+ * 对话同款，而不是留一个空标题。这些差异也**只有**这里给得出——让模型从摘要现场
+ * 归纳，归纳出的差异不受 §8.3 的可追溯约束。
+ */
+function formatCommon(slice: KnowledgeSlice): string | null {
+  if (slice.bundle.common.length === 0) return null
+  return formatBlocks(slice.bundle.common)
 }
 
 /** 全部路径的 summary——回答「保研和考研怎么选」这类跨路径问题靠它 */
@@ -200,6 +216,7 @@ export function buildSystemContent(slice: KnowledgeSlice): string {
   // 两段都是条件插入：没有内容时整段不出现，而不是留一个空标题
   const historyBlock = formatHistory(slice)
   const conversationBlock = formatConversation(slice)
+  const commonBlock = formatCommon(slice)
 
   return [
     '<knowledge>',
@@ -226,6 +243,9 @@ export function buildSystemContent(slice: KnowledgeSlice): string {
     '',
     '## 全部路径摘要',
     formatAllSummaries(slice),
+    ...(commonBlock === null
+      ? []
+      : ['', '## 通用知识（跨路径共用）', commonBlock]),
     // 对话放在最后：信息的新近性决定了它该离提问最近
     ...(conversationBlock === null
       ? []
