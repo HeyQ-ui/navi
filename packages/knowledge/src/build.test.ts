@@ -129,6 +129,10 @@ describe('buildKnowledge · 路径文档的块结构（设计文档 §6.3 v1.5�
     expect(blocks.map(b => b.type)).toEqual(['timeline', 'guide', 'myth', 'cost', 'risk'])
   })
 
+  it('本学科就业：timeline / guide / cost / risk，且已无 myth（v1.6）', () => {
+    const blocks = buildKnowledge().blocks['same-discipline-job']!
+    expect(blocks.map(b => b.type)).toEqual(['timeline', 'guide', 'cost', 'risk'])
+  })
 })
 
 describe('buildKnowledge · 通用知识（设计文档 §6.1 v1.5）', () => {
