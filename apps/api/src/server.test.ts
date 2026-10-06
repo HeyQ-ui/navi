@@ -121,6 +121,17 @@ describe('GET /api/questions', () => {
   })
 })
 
+describe('GET /api/meta', () => {
+  it('返回画像原型与指标定义，供结果页画像叙事与雷达轴使用', async () => {
+    const res = await createApp(bundle).request('/api/meta')
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual({
+      archetypes: bundle.archetypes,
+      indicators: bundle.indicators,
+    })
+  })
+})
+
 describe('POST /api/diagnose', () => {
   it('返回结构化诊断结果', async () => {
     const { app, cookie } = await authedApp()
@@ -771,6 +782,16 @@ describe('GET /api/assessments（历史）', () => {
 
     const res = await bob.app.request('/api/assessments', { headers: { cookie: bob.cookie } })
     expect(((await res.json()) as { assessments: unknown[] }).assessments).toHaveLength(0)
+  })
+})
+
+describe('GET /api/assessments · 画像名', () => {
+  it('列表行带上主原型的中文名', async () => {
+    const { app, cookie } = await authedApp()
+    await diagnoseOnce(app, cookie)
+    const res = await app.request('/api/assessments', { headers: { cookie } })
+    const body = await res.json() as { assessments: Array<{ archetypeName: string | null }> }
+    expect(body.assessments[0]!.archetypeName).toBe('稳健学术型')
   })
 })
 

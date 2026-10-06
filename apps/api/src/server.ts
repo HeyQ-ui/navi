@@ -232,6 +232,12 @@ export function createApp(bundle: KnowledgeBundle, options: AppOptions = {}): Ho
     })
   })
 
+  // 结果页画像段需要原型叙事（oneLiner/优势/盲点），雷达轴需要指标中文名；
+  // 历史详情没有 /api/questions 的上下文，统一从这里取
+  app.get('/api/meta', c => {
+    return c.json({ archetypes: bundle.archetypes, indicators: bundle.indicators })
+  })
+
   app.post('/api/diagnose', requireSession(auth), async c => {
     const body = await readBody(c)
     if (body instanceof Response) return body
@@ -395,6 +401,7 @@ export function createApp(bundle: KnowledgeBundle, options: AppOptions = {}): Ho
   app.get('/api/assessments', requireSession(auth), c => {
     const rows = getStore().listAssessments(sessionUser(c).id)
     const titles = new Map(bundle.paths.map(p => [p.id, p.title]))
+    const archetypeNames = new Map(bundle.archetypes.map(a => [a.id, a.name]))
 
     const assessments = []
     for (const row of rows) {
@@ -404,6 +411,8 @@ export function createApp(bundle: KnowledgeBundle, options: AppOptions = {}): Ho
       // 守卫放在「用到它的地方」，因为只有这里知道推导需要什么形状。
       try {
         const main = findTiedPaths(row.result)[0]
+        // 旧 schema 记录可能没有 archetypes 数组，取不到就是 null，不让它抛错
+        const topArchetype = row.result.archetypes?.[0]
         assessments.push({
           id: row.id,
           source: row.source,
@@ -413,6 +422,9 @@ export function createApp(bundle: KnowledgeBundle, options: AppOptions = {}): Ho
           // 标题由服务端补，前端就不必为了显示中文名再取一次 /api/questions
           mainPathTitle: main === undefined ? null : (titles.get(main.id) ?? main.id),
           match: main === undefined ? null : Math.round(main.match),
+          archetypeName: topArchetype === undefined
+            ? null
+            : (archetypeNames.get(topArchetype.id) ?? topArchetype.id),
         })
       } catch {
         console.warn(`[api] 跳过无法汇总的测评记录：${row.id}`)
