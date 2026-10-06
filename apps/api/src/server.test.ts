@@ -793,6 +793,26 @@ describe('GET /api/assessments · 画像名', () => {
     const body = await res.json() as { assessments: Array<{ archetypeName: string | null }> }
     expect(body.assessments[0]!.archetypeName).toBe('稳健学术型')
   })
+
+  it('archetypes 畸形（元素为 null 或缺 id）时该行仍在列表、画像名为 null', async () => {
+    const { app, cookie, store, userId } = await authedApp()
+    // paths 形状正常、只有 archetypes 畸形——画像名推导不该连累整行被跳过
+    const paths = [{ id: 'same-discipline-baoyan', match: 90, eligibility: { applicable: true } }]
+    store.createAssessment({
+      userId, source: 'self', grade: null, answers: {},
+      result: { paths, archetypes: [null] } as never,
+    })
+    store.createAssessment({
+      userId, source: 'self', grade: null, answers: {},
+      result: { paths, archetypes: [{}] } as never,
+    })
+
+    const res = await app.request('/api/assessments', { headers: { cookie } })
+    expect(res.status).toBe(200)
+    const body = await res.json() as { assessments: Array<{ archetypeName: string | null }> }
+    expect(body.assessments).toHaveLength(2)
+    expect(body.assessments.every(a => a.archetypeName === null)).toBe(true)
+  })
 })
 
 describe('GET /api/assessments/:id（单条完整）', () => {

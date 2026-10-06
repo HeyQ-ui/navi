@@ -411,7 +411,8 @@ export function createApp(bundle: KnowledgeBundle, options: AppOptions = {}): Ho
       // 守卫放在「用到它的地方」，因为只有这里知道推导需要什么形状。
       try {
         const main = findTiedPaths(row.result)[0]
-        // 旧 schema 记录可能没有 archetypes 数组，取不到就是 null，不让它抛错
+        // 旧 schema 记录可能没有 archetypes 数组，或数组元素本身是畸形值
+        // （null、缺 id 的对象）——取不到合法 id 就是 null，不让它抛错
         const topArchetype = row.result.archetypes?.[0]
         assessments.push({
           id: row.id,
@@ -422,9 +423,9 @@ export function createApp(bundle: KnowledgeBundle, options: AppOptions = {}): Ho
           // 标题由服务端补，前端就不必为了显示中文名再取一次 /api/questions
           mainPathTitle: main === undefined ? null : (titles.get(main.id) ?? main.id),
           match: main === undefined ? null : Math.round(main.match),
-          archetypeName: topArchetype === undefined
-            ? null
-            : (archetypeNames.get(topArchetype.id) ?? topArchetype.id),
+          archetypeName: typeof topArchetype?.id === 'string'
+            ? (archetypeNames.get(topArchetype.id) ?? topArchetype.id)
+            : null,
         })
       } catch {
         console.warn(`[api] 跳过无法汇总的测评记录：${row.id}`)
