@@ -1,134 +1,47 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
-import {
-  fetchAssessment, fetchAssessments, fetchChatHistory, fetchMe, fetchQuestions, logout, postDiagnose,
-} from './api.js'
+import { render, screen, waitFor } from '@testing-library/react'
+import { fetchMe, fetchPathKnowledge } from './api.js'
 import { App } from './App.js'
 
-vi.mock('./api.js', () => ({
-  fetchMe: vi.fn(),
-  fetchQuestions: vi.fn(),
-  postDiagnose: vi.fn(),
-  authenticate: vi.fn(),
-  logout: vi.fn(),
-  fetchAssessments: vi.fn(),
-  fetchAssessment: vi.fn(),
-  fetchChatHistory: vi.fn(),
-  buildChatBody: vi.fn(),
-}))
-
-/** 渲染并等到「已登录、停在选择测评对象」这一步；后续用例各自决定往哪走 */
-async function renderSignedIn() {
-  vi.mocked(fetchMe).mockResolvedValue({ id: 'u1', username: 'tester' })
-  render(<App />)
-  await screen.findByRole('button', { name: '测测自己' })
-}
+vi.mock('./api.js', async () => {
+  const actual = await vi.importActual<typeof import('./api.js')>('./api.js')
+  return {
+    ...actual,
+    fetchMe: vi.fn(), fetchQuestions: vi.fn(), postDiagnose: vi.fn(),
+    authenticate: vi.fn(), logout: vi.fn(), fetchMeta: vi.fn(), fetchPathKnowledge: vi.fn(),
+  }
+})
 
 beforeEach(() => {
-  vi.mocked(fetchMe).mockReset()
-  vi.mocked(fetchQuestions).mockReset()
-  vi.mocked(postDiagnose).mockReset()
-  vi.mocked(fetchChatHistory).mockReset()
-  // 追问区挂载时会拉历史；缺这个默认值会让整棵树炸在 undefined.then 上
-  vi.mocked(fetchChatHistory).mockResolvedValue([])
+  vi.mocked(fetchMe).mockResolvedValue(null)
 })
 
-describe('App · 登录门槛（spec §4.3）', () => {
-  it('未登录时渲染登录页，不直接进问卷', async () => {
-    vi.mocked(fetchMe).mockResolvedValue(null)
+describe('App 路由外壳', () => {
+  it('/ 渲染首页与顶栏', async () => {
+    window.history.pushState({}, '', '/')
     render(<App />)
-    expect(await screen.findByRole('button', { name: '登录' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: /先看清自己，再看清/ })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /Navi/ })).toHaveAttribute('href', '/')
   })
 
-  it('会话探测失败时退回登录页，并原样显示服务端给的原因', async () => {
-    // 吞掉服务端的文案会把人引向错误的方向：未配置 JWT_SECRET 时它说的是
-    // 「服务端未配置会话密钥」，而一句「无法连接服务端」会让人去查端口和网络
-    vi.mocked(fetchMe).mockRejectedValue(
-      new Error('账号功能暂不可用：服务端未配置会话密钥'),
-    )
+  it('未知路由重定向回首页——兜底不给 404 态', async () => {
+    window.history.pushState({}, '', '/no-such-route')
     render(<App />)
-    expect(await screen.findByRole('button', { name: '登录' })).toBeInTheDocument()
-    expect(screen.getByText('账号功能暂不可用：服务端未配置会话密钥')).toBeInTheDocument()
+    await waitFor(() => expect(window.location.pathname).toBe('/'))
+    expect(await screen.findByRole('heading', { name: /先看清自己，再看清/ })).toBeInTheDocument()
   })
 
-  it('抛出非 Error 时退回一句兜底文案，而不是显示 undefined', async () => {
-    vi.mocked(fetchMe).mockRejectedValue('boom')
-    render(<App />)
-    expect(await screen.findByText('无法连接服务端，请稍后重试')).toBeInTheDocument()
-  })
-})
-
-describe('App · 登出（spec §4.6）', () => {
-  it('登出成功后回到登录页', async () => {
-    vi.mocked(logout).mockResolvedValue(undefined)
-    await renderSignedIn()
-
-    await userEvent.click(screen.getByRole('button', { name: '登出' }))
-
-    expect(await screen.findByRole('button', { name: '登录' })).toBeInTheDocument()
-  })
-
-  it('登出请求失败时留在原地并报错，不假装已登出', async () => {
-    // 共享电脑上「以为登出了、其实没有」比「登出失败」危险得多，所以只有服务端
-    // 确认清了 cookie 才回登录页
-    vi.mocked(logout).mockRejectedValue(new Error('登出失败：500'))
-    await renderSignedIn()
-
-    await userEvent.click(screen.getByRole('button', { name: '登出' }))
-
-    expect(await screen.findByText('登出失败：500')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '测测自己' })).toBeInTheDocument()
-  })
-})
-
-describe('App · 我的历史（spec §5.1）', () => {
-  it('从首页进历史列表，点一条能看到完整结果与存下来的解读', async () => {
-    vi.mocked(fetchAssessments).mockResolvedValue([{
-      id: 'a1', source: 'self', grade: 'freshman', createdAt: '2026-02-01T00:00:00.000Z',
-      mainPathId: 'same-discipline-baoyan', mainPathTitle: '本学科保研', match: 55,
-      archetypeName: null,
-    }])
-    vi.mocked(fetchAssessment).mockResolvedValue({
-      id: 'a1', source: 'self', grade: 'freshman', createdAt: '2026-02-01T00:00:00.000Z',
-      answers: { q1: 4 },
-      result: {
-        indicators: {},
-        paths: [{
-          id: 'same-discipline-baoyan', match: 55, confidence: 0.8,
-          eligibility: { applicable: true, hardFailures: [], softWarnings: [] },
-          contributions: [],
-        }],
-        archetypes: [],
-      },
-      interpretation: '存下来的解读',
-      mainPathId: 'same-discipline-baoyan',
-      tiedPaths: ['same-discipline-baoyan'],
-      paths: [{
+  it('/path/:pathId 把路由参数交给路径详情页', async () => {
+    vi.mocked(fetchPathKnowledge).mockResolvedValue({
+      path: {
         id: 'same-discipline-baoyan', title: '本学科保研', category: 'academic',
         span: 'same-discipline', status: 'verified', summary: '',
-      }],
+        weights: [], eligibility: [],
+      },
+      blocks: [],
     })
-
-    await renderSignedIn()
-    await userEvent.click(screen.getByRole('button', { name: '我的历史' }))
-    await userEvent.click(await screen.findByText('测测自己'))
-
-    expect(await screen.findByText('存下来的解读')).toBeInTheDocument()
-    expect(screen.getByText(/匹配度 55/)).toBeInTheDocument()
-  })
-})
-
-describe('App · 信息不足（设计文档 §10）', () => {
-  it('没有可作答题目时给出显式提示，而不是让用户提交后撞 400', async () => {
-    vi.mocked(fetchQuestions).mockResolvedValue({ questions: [], indicators: [], paths: [] })
-    await renderSignedIn()
-
-    await userEvent.click(screen.getByRole('button', { name: '测测自己' }))
-    await userEvent.click(screen.getByRole('button', { name: '大一' }))
-
-    expect(await screen.findByText(/信息不足/)).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /提交/ })).not.toBeInTheDocument()
-    expect(postDiagnose).not.toHaveBeenCalled()
+    window.history.pushState({}, '', '/path/same-discipline-baoyan')
+    render(<App />)
+    expect(await screen.findByRole('heading', { name: '本学科保研' })).toBeInTheDocument()
   })
 })
