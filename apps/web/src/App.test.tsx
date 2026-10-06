@@ -87,6 +87,7 @@ describe('App · 我的历史（spec §5.1）', () => {
     vi.mocked(fetchAssessments).mockResolvedValue([{
       id: 'a1', source: 'self', grade: 'freshman', createdAt: '2026-02-01T00:00:00.000Z',
       mainPathId: 'same-discipline-baoyan', mainPathTitle: '本学科保研', match: 55,
+      archetypeName: null,
     }])
     vi.mocked(fetchAssessment).mockResolvedValue({
       id: 'a1', source: 'self', grade: 'freshman', createdAt: '2026-02-01T00:00:00.000Z',
