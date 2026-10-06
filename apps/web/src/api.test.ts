@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { postDiagnose, logout, fetchChatHistory, buildChatBody } from './api.js'
+import { ApiHttpError, fetchMeta, fetchPathKnowledge } from './api.js'
 
 afterEach(() => { vi.restoreAllMocks() })
 
@@ -88,5 +89,36 @@ describe('buildChatBody', () => {
       ] }],
     })
     expect(body.question).toBe('前半后半')
+  })
+})
+
+describe('ApiHttpError', () => {
+  it('非 2xx 时携带状态码，供调用方区分 401（会话失效）与其他错误', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ error: '未登录' }), { status: 401 }),
+    )
+    const err = await postDiagnose({ q1: 4 }, 'freshman', 'self').catch((e: unknown) => e)
+    expect(err).toBeInstanceOf(ApiHttpError)
+    expect((err as ApiHttpError).status).toBe(401)
+    expect((err as Error).message).toBe('未登录')
+  })
+})
+
+describe('fetchMeta', () => {
+  it('返回画像原型与指标定义', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ archetypes: [], indicators: [] }), { status: 200 }),
+    )
+    await expect(fetchMeta()).resolves.toEqual({ archetypes: [], indicators: [] })
+  })
+})
+
+describe('fetchPathKnowledge', () => {
+  it('按路径 id 取完整路径定义与知识块，并做 URL 编码', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ path: { id: 'a b' }, blocks: [] }), { status: 200 }),
+    )
+    await fetchPathKnowledge('a b')
+    expect(vi.mocked(globalThis.fetch).mock.calls[0]![0]).toBe('/api/knowledge/a%20b')
   })
 })

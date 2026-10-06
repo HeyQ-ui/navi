@@ -1,6 +1,8 @@
-import type { DiagnosisResult, Question } from '@navi/core'
+import type {
+  ArchetypeDef, Block, DiagnosisResult, IndicatorDef, PathDef, Question,
+} from '@navi/core'
 
-export type { DiagnosisResult, Question }
+export type { ArchetypeDef, Block, DiagnosisResult, IndicatorDef, PathDef, Question }
 export type { PathResult, IndicatorScore, Contribution, EligibilityFailure } from '@navi/core'
 
 /** 路径摘要——由 /api/questions 下发，不含内容块 */
@@ -56,11 +58,18 @@ export interface Account {
   username: string
 }
 
-/** 非 2xx 时把服务端的错误文案抛出来，让调用方能直接显示 */
+/** 非 2xx 时把服务端的错误文案抛出来，让调用方能直接显示；status 供区分 401 会话失效 */
+export class ApiHttpError extends Error {
+  constructor(message: string, readonly status: number) {
+    super(message)
+    this.name = 'ApiHttpError'
+  }
+}
+
 async function jsonOrThrow(res: Response, what: string): Promise<unknown> {
   if (res.ok) return res.json()
   const body = (await res.json().catch(() => ({}))) as { error?: string }
-  throw new Error(body.error ?? `${what}失败：${res.status}`)
+  throw new ApiHttpError(body.error ?? `${what}失败：${res.status}`, res.status)
 }
 
 /** 未登录返回 null——调用方据此决定是进登录页还是进首页 */
@@ -96,6 +105,8 @@ export interface AssessmentSummary {
   /** 服务端补好的中文路径名，前端不必再取一次 /api/questions */
   mainPathTitle: string | null
   match: number | null
+  /** 主原型中文名，服务端从 result 快照推出；旧记录可能没有 */
+  archetypeName: string | null
 }
 
 export interface AssessmentDetail {
@@ -168,4 +179,26 @@ export function buildChatBody(input: {
     .join('')
     .trim()
   return { assessmentId: input.assessmentId, pathId: input.pathId, question }
+}
+
+/** 画像原型叙事与指标中文名——结果页画像段与雷达轴需要（前端重设计 spec §5.5） */
+export interface MetaResponse {
+  archetypes: ArchetypeDef[]
+  indicators: IndicatorDef[]
+}
+
+export async function fetchMeta(): Promise<MetaResponse> {
+  const res = await fetch('/api/meta')
+  return (await jsonOrThrow(res, '获取画像原型')) as MetaResponse
+}
+
+/** 路径完整定义（含理想画像权重）+ 知识块。内容块渲染与「你和这条路」对比都靠它 */
+export interface PathKnowledge {
+  path: PathDef
+  blocks: Block[]
+}
+
+export async function fetchPathKnowledge(pathId: string): Promise<PathKnowledge> {
+  const res = await fetch(`/api/knowledge/${encodeURIComponent(pathId)}`)
+  return (await jsonOrThrow(res, '获取路径知识')) as PathKnowledge
 }
