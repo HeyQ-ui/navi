@@ -4,6 +4,19 @@ import { render, screen } from '@testing-library/react'
 vi.mock('@ai-sdk/react', () => ({ useCompletion: vi.fn(), useChat: vi.fn() }))
 vi.mock('./ProfileRadar.js', () => ({ ProfileRadar: () => <div data-testid="radar" /> }))
 
+/** 捕获 ResultBody 交给解读区的 props，用来端到端断言「解读锚在主推荐路径」。 */
+const interpretProps = vi.hoisted(() => ({
+  current: null as null | { assessmentId: string; pathId: string; interpretation?: string | null },
+}))
+// 只捕获 props、不触发流式请求；渲染出既有用例可识别的结构（placeholder 含「追问」，
+// 供「解读区是否挂载」的既有断言使用），以免破坏既有用例。
+vi.mock('./InterpretSection.js', () => ({
+  InterpretSection: (props: { assessmentId: string; pathId: string; interpretation?: string | null }) => {
+    interpretProps.current = props
+    return <input placeholder="就这条路径追问……" />
+  },
+}))
+
 import { useChat, useCompletion } from '@ai-sdk/react'
 import { fetchChatHistory, fetchMeta, fetchPathKnowledge } from '../api.js'
 import { ResultBody } from './ResultBody.js'
@@ -20,6 +33,7 @@ vi.mock('../api.js', async () => {
 })
 
 beforeEach(() => {
+  interpretProps.current = null
   vi.mocked(useCompletion).mockImplementation(((options: { body: { pathId: string } }) => ({
     completion: `解读-${options.body.pathId}`,
     complete: vi.fn(), isLoading: false, error: undefined,
@@ -159,5 +173,23 @@ describe('ResultBody · 全部路径不适用（spec §7.4）', () => {
     expect(screen.getByText('这一次，没有足够适配的路径')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: '重新测评' })).toHaveAttribute('href', '/')
     expect(screen.queryByPlaceholderText(/追问/)).not.toBeInTheDocument()
+  })
+})
+
+// 契约来源：旧 PathAssistant.test.tsx「解读 same-discipline-baoyan」。
+// 承接「解读锚在主推荐路径」——ResultBody 选取主推荐、InterpretSection 按 pathId 发起解读，
+// 此处端到端钉住交接给解读区的 pathId 就是被选中的主推荐路径 id，而非其它路径。
+describe('ResultBody · 解读锚定主推荐路径（契约延续）', () => {
+  it('解读区收到的 pathId 是被选中的主推荐路径 id（可适用路径不在首位时也锚它）', () => {
+    // 高分但硬性不适用的 civil-service 排在首位，可适用的 same-discipline-baoyan 在次位。
+    const applicableNotFirst: DiagnosisResult = {
+      ...result,
+      paths: [{ ...result.paths[1]!, match: 95 }, result.paths[0]!],
+    }
+    renderBody({ result: applicableNotFirst })
+
+    expect(interpretProps.current?.pathId).toBe('same-discipline-baoyan')
+    expect(interpretProps.current?.pathId).not.toBe('civil-service')
+    expect(interpretProps.current?.assessmentId).toBe('a1')
   })
 })
