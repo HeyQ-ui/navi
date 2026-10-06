@@ -1,3 +1,81 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer base {
+  html {
+    @apply bg-paper font-sans text-[16px] leading-[1.9] text-ink;
+  }
+  /* 纸纹：SVG 噪点 3% 透明度，不引图片资源（spec §3.3） */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    opacity: 0.03;
+    pointer-events: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg bg-accent px-6 py-2.5 text-[15px] text-white transition-colors hover:bg-accent-deep disabled:cursor-not-allowed disabled:opacity-60;
+  }
+  .btn-secondary {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg border border-accent/40 px-6 py-2.5 text-[15px] text-accent-deep transition-colors hover:bg-accent-soft;
+  }
+  .field-input {
+    @apply w-full rounded-lg border border-line bg-paper px-3.5 py-2.5 text-[15px] outline-none transition focus:border-accent focus:ring-[3px] focus:ring-accent-soft;
+  }
+  .panel {
+    @apply rounded-panel border border-line bg-surface;
+  }
+  .section-head {
+    @apply mb-6 flex items-baseline gap-3 border-b border-line pb-3;
+  }
+  .section-num {
+    @apply font-num text-[15px] font-semibold text-accent;
+  }
+  .section-title {
+    @apply font-serif text-[19px] font-black;
+  }
+  .chip {
+    @apply inline-flex items-center rounded-md border px-2 py-0.5 text-[12px] leading-5;
+  }
+  .spinner {
+    @apply inline-block h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white;
+  }
+  .skeleton {
+    @apply animate-pulse rounded-md bg-line/70;
+  }
+}
+
+/* 知识块富文本排版（作用域类 .kb，块内容来自自有编译器，可信） */
+.kb p { margin-bottom: 0.5em; }
+.kb p:last-child { margin-bottom: 0; }
+.kb ul { list-style: disc; padding-left: 1.4em; display: grid; gap: 6px; }
+.kb strong { @apply font-semibold text-ink; }
+.kb table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.kb th, .kb td { border: 1px solid #E6DDD0; padding: 8px 10px; text-align: left; }
+.kb th { background: #F7F3EC; }
+
+/* 代价 / 风险块：列表符号换成 － 与 △（spec §6） */
+.kb-cost ul, .kb-risk ul { list-style: none; padding-left: 0; }
+.kb-cost li, .kb-risk li { position: relative; padding-left: 1.4em; }
+.kb-cost li::before { content: '－'; position: absolute; left: 0; color: #6E6459; }
+.kb-risk li::before { content: '△'; position: absolute; left: 0; color: #B23B2E; }
+
+/* 流式解读光标 */
+.stream-cursor {
+  @apply inline-block h-[1em] w-[2px] translate-y-[2px] animate-blink bg-accent;
+}
+
+/* 滚动显现：一次性，不重复播放（spec §3.4 第 4 条） */
+.reveal { opacity: 0; transform: translateY(8px); transition: opacity 240ms ease-out, transform 240ms ease-out; }
+.reveal.is-in { opacity: 1; transform: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+  .reveal { opacity: 1; transform: none; }
+}
