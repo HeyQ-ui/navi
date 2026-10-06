@@ -41,7 +41,7 @@
     @apply font-serif text-[19px] font-black;
   }
   .chip {
-    @apply inline-flex items-center rounded-md border px-2 py-0.5 text-[12px] leading-5;
+    @apply inline-flex items-center rounded-md border border-line px-2 py-0.5 text-[12px] leading-5;
   }
   .spinner {
     @apply inline-block h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white;
@@ -52,19 +52,20 @@
 }
 
 /* 知识块富文本排版（作用域类 .kb，块内容来自自有编译器，可信） */
+/* 色值一律取主题令牌，避免与 tailwind.config.js 漂移 */
 .kb p { margin-bottom: 0.5em; }
 .kb p:last-child { margin-bottom: 0; }
 .kb ul { list-style: disc; padding-left: 1.4em; display: grid; gap: 6px; }
 .kb strong { @apply font-semibold text-ink; }
 .kb table { width: 100%; border-collapse: collapse; font-size: 14px; }
-.kb th, .kb td { border: 1px solid #E6DDD0; padding: 8px 10px; text-align: left; }
-.kb th { background: #F7F3EC; }
+.kb th, .kb td { border: 1px solid theme('colors.line'); padding: 8px 10px; text-align: left; }
+.kb th { background: theme('colors.paper'); }
 
 /* 代价 / 风险块：列表符号换成 － 与 △（spec §6） */
 .kb-cost ul, .kb-risk ul { list-style: none; padding-left: 0; }
 .kb-cost li, .kb-risk li { position: relative; padding-left: 1.4em; }
-.kb-cost li::before { content: '－'; position: absolute; left: 0; color: #6E6459; }
-.kb-risk li::before { content: '△'; position: absolute; left: 0; color: #B23B2E; }
+.kb-cost li::before { content: '－'; position: absolute; left: 0; color: theme('colors.ink-2'); }
+.kb-risk li::before { content: '△'; position: absolute; left: 0; color: theme('colors.bad.DEFAULT'); }
 
 /* 流式解读光标 */
 .stream-cursor {

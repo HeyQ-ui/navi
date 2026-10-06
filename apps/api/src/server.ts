@@ -233,9 +233,13 @@ export function createApp(bundle: KnowledgeBundle, options: AppOptions = {}): Ho
   })
 
   // 结果页画像段需要原型叙事（oneLiner/优势/盲点），雷达轴需要指标中文名；
-  // 历史详情没有 /api/questions 的上下文，统一从这里取
+  // 历史详情没有 /api/questions 的上下文，统一从这里取。
+  // 只下发名称与叙事：原型 vector 是算亲和度用的算法输入，前端不展示，不必出网
   app.get('/api/meta', c => {
-    return c.json({ archetypes: bundle.archetypes, indicators: bundle.indicators })
+    return c.json({
+      archetypes: bundle.archetypes.map(a => ({ id: a.id, name: a.name, narrative: a.narrative })),
+      indicators: bundle.indicators,
+    })
   })
 
   app.post('/api/diagnose', requireSession(auth), async c => {

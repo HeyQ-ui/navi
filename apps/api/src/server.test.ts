@@ -122,13 +122,28 @@ describe('GET /api/questions', () => {
 })
 
 describe('GET /api/meta', () => {
-  it('返回画像原型与指标定义，供结果页画像叙事与雷达轴使用', async () => {
+  it('返回画像原型叙事与指标中文名，供结果页画像段与雷达轴使用', async () => {
     const res = await createApp(bundle).request('/api/meta')
     expect(res.status).toBe(200)
-    expect(await res.json()).toEqual({
-      archetypes: bundle.archetypes,
-      indicators: bundle.indicators,
+    const body = await res.json() as {
+      archetypes: Array<Record<string, unknown>>
+      indicators: unknown[]
+    }
+    const first = bundle.archetypes[0]!
+    expect(body.archetypes).toHaveLength(bundle.archetypes.length)
+    expect(body.archetypes[0]).toEqual({
+      id: first.id,
+      name: first.name,
+      narrative: first.narrative,
     })
+    expect(body.indicators).toEqual(bundle.indicators)
+  })
+
+  it('不下发原型 vector——那是算法输入，前端不展示', async () => {
+    const res = await createApp(bundle).request('/api/meta')
+    const body = await res.json() as { archetypes: Array<Record<string, unknown>> }
+    // toEqual 已经按精确键比对；这条断言把「为什么」写进测试，防止将来被顺手加回来
+    expect(body.archetypes.some(a => 'vector' in a)).toBe(false)
   })
 })
 

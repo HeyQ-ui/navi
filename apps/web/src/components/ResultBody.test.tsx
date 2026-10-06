@@ -44,7 +44,7 @@ beforeEach(() => {
   vi.mocked(fetchChatHistory).mockResolvedValue([])
   vi.mocked(fetchMeta).mockResolvedValue({
     archetypes: [{
-      id: 'steady-scholar', name: '稳健学术型', vector: {},
+      id: 'steady-scholar', name: '稳健学术型',
       narrative: { oneLiner: '一句话人设', strengths: ['坐得住'], blindspots: ['起步晚'] },
     }],
     indicators: [{ id: 'academic-interest', name: '学术志趣' }],

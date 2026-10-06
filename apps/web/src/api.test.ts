@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
-import { postDiagnose, logout, fetchChatHistory, buildChatBody } from './api.js'
+import { postDiagnose, logout, fetchQuestions, fetchChatHistory, buildChatBody } from './api.js'
 import { ApiHttpError, fetchMeta, fetchPathKnowledge } from './api.js'
 
 afterEach(() => { vi.restoreAllMocks() })
@@ -20,13 +20,37 @@ describe('postDiagnose', () => {
   })
 })
 
+describe('fetchQuestions', () => {
+  it('把服务端的错误文案透出来，而不是只报状态码', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ error: '年级参数不合法' }), { status: 400 }),
+    )
+    await expect(fetchQuestions('freshman')).rejects.toThrow('年级参数不合法')
+  })
+
+  it('响应体不是 JSON 时退回状态码文案', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('boom', { status: 500 }))
+    await expect(fetchQuestions('freshman')).rejects.toThrow('获取问卷失败：500')
+  })
+})
+
 describe('logout', () => {
   it('非 2xx 时抛错，让调用方知道 cookie 可能没清掉', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(null, { status: 500 }))
     await expect(logout()).rejects.toThrow('登出失败：500')
   })
 
-  it('2xx 时不抛错', async () => {
+  it('失败时原样透出服务端文案——它是排查线索，不能压成状态码', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ error: '账号功能暂不可用：服务端未配置会话密钥' }), { status: 503 }),
+    )
+    const err = await logout().catch((e: unknown) => e)
+    expect(err).toBeInstanceOf(ApiHttpError)
+    expect((err as ApiHttpError).status).toBe(503)
+    expect((err as Error).message).toBe('账号功能暂不可用：服务端未配置会话密钥')
+  })
+
+  it('2xx 时不抛错（成功是 204 无正文，不能去解析 JSON）', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(null, { status: 204 }))
     await expect(logout()).resolves.toBeUndefined()
   })

@@ -34,8 +34,8 @@ export interface DiagnosisResponse extends DiagnosisResult {
 
 export async function fetchQuestions(grade: Grade): Promise<QuestionsResponse> {
   const res = await fetch(`/api/questions?grade=${grade}`)
-  if (!res.ok) throw new Error(`获取问卷失败：${res.status}`)
-  return (await res.json()) as QuestionsResponse
+  // 走 jsonOrThrow：服务端若给了具体原因（如参数不合法），原样透出而不是压成状态码
+  return (await jsonOrThrow(res, '获取问卷')) as QuestionsResponse
 }
 
 export async function postDiagnose(
@@ -92,8 +92,12 @@ export async function authenticate(
 
 export async function logout(): Promise<void> {
   const res = await fetch('/api/auth/logout', { method: 'POST' })
-  // 非 2xx 必须抛：cookie 可能没清掉，调用方不能当成已登出（共享电脑上要紧）
-  if (!res.ok) throw new Error(`登出失败：${res.status}`)
+  // 非 2xx 必须抛：cookie 可能没清掉，调用方不能当成已登出（共享电脑上要紧）。
+  // 成功是 204 无正文，所以不能整体走 jsonOrThrow——只在失败分支读错误文案
+  if (!res.ok) {
+    const body = (await res.json().catch(() => ({}))) as { error?: string }
+    throw new ApiHttpError(body.error ?? `登出失败：${res.status}`, res.status)
+  }
 }
 
 export interface AssessmentSummary {
@@ -181,9 +185,19 @@ export function buildChatBody(input: {
   return { assessmentId: input.assessmentId, pathId: input.pathId, question }
 }
 
+/**
+ * /api/meta 下发的画像原型：名称与叙事。**不含 `vector`**——
+ * 那是算亲和度用的理想画像向量，前端只需展示叙事，服务端不出网。
+ */
+export interface ArchetypeBrief {
+  id: string
+  name: string
+  narrative: { oneLiner: string; strengths: string[]; blindspots: string[] }
+}
+
 /** 画像原型叙事与指标中文名——结果页画像段与雷达轴需要（前端重设计 spec §5.5） */
 export interface MetaResponse {
-  archetypes: ArchetypeDef[]
+  archetypes: ArchetypeBrief[]
   indicators: IndicatorDef[]
 }
 
