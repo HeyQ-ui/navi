@@ -69,6 +69,12 @@ describe('提示词 · 解读的输出结构（设计文档 §8.2、专项 §11.
   it('要求除「你的变化」段外不要主动做跨次对比', () => {
     expect(prompt('interpret')).toContain('不要主动做跨次对比')
   })
+
+  it('要求解读末尾以【可以问我】行给出建议问题（前端重设计 spec §8.2）', () => {
+    const text = prompt('interpret')
+    expect(text).toContain('【可以问我】')
+    expect(text).toContain('1–3 条')
+  })
 })
 
 describe('提示词 · 追问的对比约束（专项 §11.6）', () => {
