@@ -147,6 +147,31 @@ describe('GET /api/meta', () => {
   })
 })
 
+describe('GET /api/overview', () => {
+  const common = [
+    { type: 'myth', title: '目标真空、盲目跟风', html: '<p>正文</p>', raw: '目标真空、盲目跟风' },
+    { type: 'compare', title: '七条路径差异对比', html: '<table><tr><td>a</td></tr></table>', raw: '七条路径差异对比' },
+  ]
+
+  it('免登录返回七条路径摘要与通用知识块，供路径总览页一次取齐', async () => {
+    // 不带 cookie：浏览不挡，这是主文档 §9.1 那条「不做诊断直接浏览」的端点
+    const res = await createApp({ ...bundle, common }).request('/api/overview')
+    expect(res.status).toBe(200)
+    const body = await res.json() as {
+      paths: Array<Record<string, unknown>>
+      common: unknown[]
+    }
+    expect(body.paths).toHaveLength(bundle.paths.length)
+    expect(body.paths[0]).toEqual({
+      id: 'same-discipline-baoyan', title: '本学科保研', category: 'academic',
+      span: 'same-discipline', status: 'verified', summary: '',
+    })
+    // 摘要只含摘要：知识块与权重由 /api/knowledge/:pathId 单独提供
+    expect(body.paths.some(p => 'weights' in p || 'eligibility' in p || 'blocks' in p)).toBe(false)
+    expect(body.common).toEqual(common)
+  })
+})
+
 describe('POST /api/diagnose', () => {
   it('返回结构化诊断结果', async () => {
     const { app, cookie } = await authedApp()

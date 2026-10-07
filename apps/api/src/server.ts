@@ -242,6 +242,12 @@ export function createApp(bundle: KnowledgeBundle, options: AppOptions = {}): Ho
     })
   })
 
+  // 路径总览页（spec §5.8）：不做诊断直接浏览知识库时一次取齐所需的全部数据。
+  // 路径摘要与 /api/questions 的 paths 同源；通用知识块来自 common.md 编译产物
+  app.get('/api/overview', c => {
+    return c.json({ paths: pathSummaries(), common: bundle.common })
+  })
+
   app.post('/api/diagnose', requireSession(auth), async c => {
     const body = await readBody(c)
     if (body instanceof Response) return body
