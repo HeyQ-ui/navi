@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Link } from 'wouter'
 import { fetchOverview } from '../api.js'
 import type { OverviewResponse } from '../api.js'
 import { BlockRenderer } from '../components/BlockRenderer.js'
@@ -65,7 +66,10 @@ export function PathsPage() {
   return (
     <div className="mx-auto max-w-prose animate-rise px-6 py-14">
       <header>
-        <h1 className="font-serif text-[34px] font-black leading-[1.3]">七条路径</h1>
+        <Link href="/" className="text-[14px] text-ink-2 transition-colors hover:text-accent-deep">
+          ← 返回首页
+        </Link>
+        <h1 className="mt-6 font-serif text-[34px] font-black leading-[1.3]">七条路径</h1>
         <p className="mt-3 text-[15px] text-ink-2">
           不需要先测评。先看清每条路要付出什么、会在哪里卡住。
         </p>
@@ -78,7 +82,10 @@ export function PathsPage() {
         </div>
         <ul className="space-y-2.5">
           {data.paths.map(path => (
-            <PathRow key={path.id} data={{ id: path.id, title: path.title, status: path.status }} />
+            <PathRow
+              key={path.id}
+              data={{ id: path.id, title: path.title, status: path.status, from: 'paths' }}
+            />
           ))}
         </ul>
       </section>

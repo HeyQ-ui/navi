@@ -189,7 +189,8 @@ export function ResultBody({ result, paths, tiedPaths, assessmentId, interpretat
                       <div className="mb-1 flex items-baseline justify-between text-[14px]">
                         <span>{row.name}</span>
                         <span className="font-num text-[13px] text-ink-2">
-                          你 {row.score} · 理想 {row.ideal}
+                          {/* 指标分是加权平均，原始值可能是 16.666…：显示保留 1 位小数 */}
+                          你 {Math.round(row.score * 10) / 10} · 理想 {row.ideal}
                         </span>
                       </div>
                       <div className="relative h-2 rounded bg-line/60">

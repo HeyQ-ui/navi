@@ -160,6 +160,18 @@ describe('ResultBody · 差距榜', () => {
     renderBody()
     expect(await screen.findByText(/你 75 · 理想 90/)).toBeInTheDocument()
   })
+
+  it('指标分是加权平均，显示保留 1 位小数（spec §5.5 03 段）', async () => {
+    renderBody({
+      result: {
+        ...result,
+        indicators: {
+          'academic-interest': { score: 16.666666666666668, known: true, consistency: 1, sources: [] },
+        },
+      },
+    })
+    expect(await screen.findByText(/你 16\.7 · 理想 90/)).toBeInTheDocument()
+  })
 })
 
 describe('ResultBody · 全部路径不适用（spec §7.4）', () => {

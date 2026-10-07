@@ -55,13 +55,18 @@ describe('PathsPage', () => {
     expect(container.querySelector('.bg-line')).toBeNull()
   })
 
-  it('每行指向各自详情页，draft 路径带待核实角标（spec §3.6）', async () => {
+  it('每行指向各自详情页并带上来源标记，draft 路径带待核实角标（spec §3.6、§5.6）', async () => {
     renderPage()
     expect(await screen.findByRole('link', { name: /本学科保研/ }))
-      .toHaveAttribute('href', '/path/same-discipline-baoyan')
+      .toHaveAttribute('href', '/path/same-discipline-baoyan?from=paths')
     expect(screen.getByRole('link', { name: /跨学科保研/ }))
-      .toHaveAttribute('href', '/path/cross-discipline-baoyan')
+      .toHaveAttribute('href', '/path/cross-discipline-baoyan?from=paths')
     expect(screen.getByText('待核实')).toBeInTheDocument()
+  })
+
+  it('页头有返回首页入口（spec §5.8）', async () => {
+    renderPage()
+    expect(await screen.findByRole('link', { name: /返回首页/ })).toHaveAttribute('href', '/')
   })
 
   it('加载中显示暖纸色骨架屏（spec §7.1）', () => {

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'wouter'
+import { useSearch } from 'wouter/use-browser-location'
 import { fetchPathKnowledge } from '../api.js'
 import type { PathKnowledge } from '../api.js'
 import { BlockRenderer } from '../components/BlockRenderer.js'
@@ -29,8 +30,12 @@ export function PathDetailPage({ pathId }: { pathId: string }) {
   // 浏览器标题 =「{路径名}-详情」（spec §4.1）；数据未到前先给通用标题
   useTitle(knowledge === null ? '路径详情 · Navi' : `${knowledge.path.title}-详情`)
 
-  const backTo = flow.result !== null ? '/result' : '/'
-  const backLabel = flow.result !== null ? '回到结果' : '回到首页'
+  // 返回链跟着来处走（spec §5.6）：从路径总览进来的指回总览，带结果上下文的指回结果，
+  // 都没有则回首页。来源写在查询串里而不是靠浏览器回退——分享/直达链接才有确定的落点
+  const search = useSearch()
+  const fromPaths = new URLSearchParams(search).get('from') === 'paths'
+  const backTo = fromPaths ? '/paths' : flow.result !== null ? '/result' : '/'
+  const backLabel = fromPaths ? '返回七条路径' : flow.result !== null ? '回到结果' : '回到首页'
   const match = flow.result?.paths.find(p => p.id === pathId)
 
   if (loading) {

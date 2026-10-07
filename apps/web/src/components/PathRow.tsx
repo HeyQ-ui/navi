@@ -14,6 +14,11 @@ export interface PathRowData {
   match?: number
   applicable?: boolean
   hardFailures?: EligibilityFailure[]
+  /**
+   * 来源页标记：只有路径总览页传 'paths'。详情页据此把返回链指回来处（spec §5.6），
+   * 结果页不传，href 保持干净的 `/path/:id`。
+   */
+  from?: string
 }
 
 /**
@@ -24,11 +29,14 @@ export function PathRow({ data }: { data: PathRowData }) {
   const applicable = data.applicable ?? true
   const match = data.match
   const hardFailures = data.hardFailures ?? []
+  const href = data.from === undefined
+    ? `/path/${data.id}`
+    : `/path/${data.id}?from=${encodeURIComponent(data.from)}`
 
   return (
     <li>
       <Link
-        href={`/path/${data.id}`}
+        href={href}
         className={`group flex items-center gap-4 rounded-lg border border-line bg-surface px-5 py-3.5 transition-all hover:-translate-y-px hover:border-accent ${
           applicable ? '' : 'opacity-55'
         }`}

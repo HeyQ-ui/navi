@@ -49,4 +49,13 @@ describe('PathRow', () => {
     expect(screen.getByText('不适用：需要党员身份')).toBeInTheDocument()
     expect(container.querySelector('.opacity-55')).not.toBeNull()
   })
+
+  it('带来源标记时 href 带上 from，供详情页把返回链指回来源页（spec §5.6）', () => {
+    renderRow({
+      id: 'same-discipline-baoyan', title: '本学科保研', status: 'verified',
+      from: 'paths',
+    })
+    expect(screen.getByRole('link', { name: /本学科保研/ }))
+      .toHaveAttribute('href', '/path/same-discipline-baoyan?from=paths')
+  })
 })

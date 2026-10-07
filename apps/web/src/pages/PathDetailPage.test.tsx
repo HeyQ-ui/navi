@@ -81,6 +81,13 @@ describe('PathDetailPage', () => {
     expect(screen.getByRole('link', { name: /回到首页/ })).toHaveAttribute('href', '/')
   })
 
+  it('从路径总览进来时返回链接指回 /paths（spec §5.6）', async () => {
+    window.history.pushState({}, '', '/path/same-discipline-baoyan?from=paths')
+    renderPage()
+    await screen.findByRole('heading', { name: '本学科保研' })
+    expect(screen.getByRole('link', { name: /返回七条路径/ })).toHaveAttribute('href', '/paths')
+  })
+
   it('从结果页进来时带上匹配分，返回链接指向结果页', async () => {
     vi.mocked(fetchQuestions).mockResolvedValue({
       questions: [{ id: 'q1', text: 't', options: ['a'], weight: 1 }],
