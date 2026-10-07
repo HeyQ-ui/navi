@@ -78,7 +78,7 @@ export function HomePage() {
           ))}
         </ul>
         <p className="mt-12 text-center text-[13px] text-ink-3">
-          也可以先随便看看——<Link href="/path/same-discipline-baoyan" className="text-accent-deep">任一路径的真相</Link>不登录也能读。
+          也可以先随便看看——<Link href="/paths" className="text-accent-deep">七条路径的真相与对比</Link>，不登录也能读。
         </p>
       </section>
     </div>

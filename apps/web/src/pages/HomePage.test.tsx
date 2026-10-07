@@ -49,4 +49,11 @@ describe('HomePage', () => {
     await userEvent.click(screen.getByRole('button', { name: '测测别人' }))
     expect(window.location.pathname).toBe('/grade')
   })
+
+  it('页尾引导指向路径总览，不登录也能看（spec §5.1）', async () => {
+    vi.mocked(fetchMe).mockResolvedValue(null)
+    renderHome()
+    expect(await screen.findByRole('link', { name: '七条路径的真相与对比' }))
+      .toHaveAttribute('href', '/paths')
+  })
 })

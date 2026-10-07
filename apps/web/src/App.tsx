@@ -6,6 +6,7 @@ import { HistoryDetailPage } from './pages/HistoryDetailPage.js'
 import { HistoryPage } from './pages/HistoryPage.js'
 import { HomePage } from './pages/HomePage.js'
 import { PathDetailPage } from './pages/PathDetailPage.js'
+import { PathsPage } from './pages/PathsPage.js'
 import { QuizPage } from './pages/QuizPage.js'
 import { ResultPage } from './pages/ResultPage.js'
 import { FlowProvider } from './state.js'
@@ -24,6 +25,7 @@ export function App() {
         <Route path="/path/:pathId">
           {params => <PathDetailPage pathId={params.pathId} />}
         </Route>
+        <Route path="/paths" component={PathsPage} />
         <Route path="/history" component={HistoryPage} />
         <Route path="/history/:recordId">
           {params => <HistoryDetailPage recordId={params.recordId} />}

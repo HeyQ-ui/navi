@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { fetchMe, fetchPathKnowledge, fetchQuestions } from './api.js'
+import { fetchMe, fetchOverview, fetchPathKnowledge, fetchQuestions } from './api.js'
 import { App } from './App.js'
 
 vi.mock('./api.js', async () => {
@@ -10,6 +10,7 @@ vi.mock('./api.js', async () => {
     ...actual,
     fetchMe: vi.fn(), fetchQuestions: vi.fn(), postDiagnose: vi.fn(),
     authenticate: vi.fn(), logout: vi.fn(), fetchMeta: vi.fn(), fetchPathKnowledge: vi.fn(),
+    fetchOverview: vi.fn(),
   }
 })
 
@@ -59,5 +60,13 @@ describe('App 路由外壳', () => {
     window.history.pushState({}, '', '/path/same-discipline-baoyan')
     render(<App />)
     expect(await screen.findByRole('heading', { name: '本学科保研' })).toBeInTheDocument()
+  })
+
+  it('/paths 渲染路径总览（免登录）', async () => {
+    vi.mocked(fetchMe).mockResolvedValue(null)
+    vi.mocked(fetchOverview).mockResolvedValue({ paths: [], common: [] })
+    window.history.pushState({}, '', '/paths')
+    render(<App />)
+    expect(await screen.findByRole('heading', { name: '七条路径' })).toBeInTheDocument()
   })
 })
