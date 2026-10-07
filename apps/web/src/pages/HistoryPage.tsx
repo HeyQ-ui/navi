@@ -24,7 +24,7 @@ function metaOf(row: AssessmentSummary): string {
 
 export function HistoryPage() {
   useTitle('历史 · Navi')
-  const { authReady, account, setAuthRedirect } = useFlow()
+  const { authReady, account, signingIn, setAuthRedirect } = useFlow()
   const [rows, setRows] = useState<AssessmentSummary[] | null>(null)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
@@ -33,9 +33,10 @@ export function HistoryPage() {
   const loggedIn = authReady && account !== null
 
   useEffect(() => {
-    // 未登录会被送去 /auth；先记下回跳点，登录成功后回历史页而不是首页
-    if (authReady && account === null) setAuthRedirect('/history')
-  }, [authReady, account, setAuthRedirect])
+    // 未登录会被送去 /auth；先记下回跳点，登录成功后回历史页而不是首页。
+    // 登录在途时不记：此刻 account 还是旧值，记下去会把登录页刚清掉的目标又写回来
+    if (authReady && account === null && !signingIn) setAuthRedirect('/history')
+  }, [authReady, account, signingIn, setAuthRedirect])
 
   useEffect(() => {
     if (!loggedIn) return
@@ -49,8 +50,11 @@ export function HistoryPage() {
     return () => { cancelled = true }
   }, [loggedIn, reloadKey])
 
-  // 会话探测是异步的：登录态确认前不跳转，先给骨架，否则会把已登录用户误送去 /auth
-  if (!authReady) {
+  // 会话探测是异步的：登录态确认前不跳转，先给骨架，否则会把已登录用户误送去 /auth。
+  // 登录请求在途时同理——wouter 的位置更新经 useSyncExternalStore 以同步优先级提交，
+  // 会先于 signIn 里那次 setAccount 落地，这一瞬间 account 仍是 null，
+  // 若在这里跳转，刚登录成功的人会被送回登录页
+  if (!authReady || (account === null && signingIn)) {
     return (
       <div className="mx-auto max-w-prose px-6 py-14">
         <div className="skeleton h-9 w-40" />

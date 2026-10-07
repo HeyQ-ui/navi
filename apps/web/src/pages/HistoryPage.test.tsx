@@ -1,9 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { fetchAssessments, fetchMe } from '../api.js'
+import { authenticate, fetchAssessments, fetchMe } from '../api.js'
 import type { Account, AssessmentSummary } from '../api.js'
-import { FlowProvider } from '../state.js'
+import { FlowProvider, useFlow } from '../state.js'
 import { HistoryPage } from './HistoryPage.js'
 
 vi.mock('../api.js', async () => {
@@ -49,6 +49,33 @@ describe('HistoryPage', () => {
     vi.mocked(fetchMe).mockReturnValue(new Promise<Account | null>(() => {}))
     const { container } = renderPage()
     expect(container.querySelector('.skeleton')).not.toBeNull()
+    expect(window.location.pathname).toBe('/history')
+  })
+
+  it('登录请求在途时给骨架，不把刚登录成功的人送回登录页', async () => {
+    // 与问卷页同一时序：navigate('/history') 的位置更新经 useSyncExternalStore
+    // 以同步优先级提交，会先于 signIn 里那次 setAccount 落地——这一瞬间 account
+    // 仍是 null。守卫若把「账号在路上」当成「未登录」，用户会在登录成功后被送回
+    // 登录页。真实时序：登录发生在登录页，路由切到 /history 后历史页才挂载。
+    function Gate() {
+      const flow = useFlow()
+      return flow.signingIn || flow.account !== null ? <HistoryPage /> : null
+    }
+    function LoginProbe() {
+      const flow = useFlow()
+      return (
+        <button type="button" onClick={() => void flow.signIn('login', 'tester', 'secret')}>
+          走一遍登录
+        </button>
+      )
+    }
+    vi.mocked(fetchMe).mockResolvedValue(null)
+    vi.mocked(authenticate).mockReturnValue(new Promise(() => {}))
+    const { container } = render(
+      <FlowProvider><Gate /><LoginProbe /></FlowProvider>,
+    )
+    await userEvent.click(await screen.findByRole('button', { name: '走一遍登录' }))
+    await waitFor(() => expect(container.querySelector('.skeleton')).not.toBeNull())
     expect(window.location.pathname).toBe('/history')
   })
 

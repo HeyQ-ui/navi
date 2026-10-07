@@ -16,6 +16,8 @@ export interface FlowValue {
   authReady: boolean
   /** 会话探测失败的原因，原样来自服务端——显示时不得改写 */
   authError: string
+  /** 登录 / 注册请求在途。目标页守卫据此分辨「已登录但账号还没落盘」与「确实没登录」 */
+  signingIn: boolean
   signIn(mode: 'login' | 'register', username: string, password: string): Promise<void>
   signOut(): Promise<void>
 
@@ -52,6 +54,7 @@ export function FlowProvider({ children }: { children: ReactNode }) {
   const [account, setAccount] = useState<Account | null>(null)
   const [authReady, setAuthReady] = useState(false)
   const [authError, setAuthError] = useState('')
+  const [signingIn, setSigningIn] = useState(false)
   const [source, setSource] = useState<AssessmentSource>('self')
   const [grade, setGrade] = useState<Grade | null>(null)
   const [data, setData] = useState<QuestionsResponse | null>(null)
@@ -73,7 +76,14 @@ export function FlowProvider({ children }: { children: ReactNode }) {
 
   const signIn = useCallback(
     async (mode: 'login' | 'register', username: string, password: string) => {
-      setAccount(await authenticate(mode, username, password))
+      // 在途标记必须先立起来（它落在本次点击的离散车道里，会先于账号落盘）：
+      // 跳转时目标页的守卫才能分辨「账号马上就到」和「确实没登录」
+      setSigningIn(true)
+      try {
+        setAccount(await authenticate(mode, username, password))
+      } finally {
+        setSigningIn(false)
+      }
     },
     [],
   )
@@ -151,7 +161,7 @@ export function FlowProvider({ children }: { children: ReactNode }) {
   return (
     <FlowContext.Provider
       value={{
-        account, authReady, authError, signIn, signOut,
+        account, authReady, authError, signingIn, signIn, signOut,
         source, startAssessment,
         grade, data, questionsLoading, questionsError, chooseGrade,
         answers, setAnswer,

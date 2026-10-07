@@ -62,4 +62,20 @@ describe('ResultPage', () => {
     await userEvent.click(await screen.findByRole('button', { name: '走一遍流程' }))
     expect(await screen.findByTestId('result-body')).toHaveTextContent('a1')
   })
+
+  it('提交在途时给骨架，不把刚交完卷的人弹回封面', async () => {
+    // 与问卷页同一时序：navigate('/result') 的位置更新经 useSyncExternalStore
+    // 以同步优先级提交，会先于 submit 里那次 setResult 落地——这一瞬间 result
+    // 仍是 null。守卫若把「结果在路上」当成「没有结果」，用户交完卷就被弹回封面。
+    // 真实时序：交卷发生在问卷页，路由切到 /result 后结果页才挂载。
+    function Gate() {
+      const flow = useFlow()
+      return flow.submitting || flow.result !== null ? <ResultPage /> : null
+    }
+    vi.mocked(postDiagnose).mockReturnValue(new Promise(() => {}))
+    const { container } = render(<FlowProvider><Gate /><RunProbe /></FlowProvider>)
+    await userEvent.click(await screen.findByRole('button', { name: '走一遍流程' }))
+    await waitFor(() => expect(container.querySelector('.skeleton')).not.toBeNull())
+    expect(window.location.pathname).toBe('/result')
+  })
 })
