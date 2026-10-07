@@ -3,7 +3,7 @@ id: cross-discipline-kaoyan
 title: 跨学科考研
 category: academic
 span: cross-discipline
-status: draft
+status: verified
 updated: 2026-10
 summary: >
   跨学科考研（「跨考」）在统考分数面前相对公平，代价是目标学科的课程大多要靠自学，

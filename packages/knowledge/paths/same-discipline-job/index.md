@@ -3,7 +3,7 @@ id: same-discipline-job
 title: 本学科本科就业
 category: employment
 span: same-discipline
-status: draft
+status: verified
 updated: 2026-10
 summary: >
   本学科就业走的是校园招聘，秋招是主战场，春招只做补录，决战就在大四上学期。但准备

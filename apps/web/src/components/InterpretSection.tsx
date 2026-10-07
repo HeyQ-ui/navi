@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useChat, useCompletion } from '@ai-sdk/react'
 import { DefaultChatTransport } from 'ai'
 import { buildChatBody, fetchChatHistory } from '../api.js'
@@ -67,6 +67,21 @@ export function InterpretSection({ assessmentId, pathId, interpretation }: Props
   const streaming = !hasStored && interpreting
   const { body, suggestions } = splitSuggestions(raw ?? '', streaming)
 
+  // 默认只露前 6 行（6 × 1.9 × 15px = 171px），其余折叠；展开后不再收
+  const [expanded, setExpanded] = useState(false)
+  const [overflowing, setOverflowing] = useState(false)
+  const bodyRef = useRef<HTMLParagraphElement | null>(null)
+
+  // 只有真的超过 6 行才折：短解读不该出现模糊与展开按钮。
+  // 用 layout effect 在绘制前量，避免先铺满再收起的跳动
+  useLayoutEffect(() => {
+    const el = bodyRef.current
+    if (el === null) return
+    setOverflowing(el.scrollHeight > el.clientHeight + 1)
+  }, [body, expanded, streaming])
+
+  const showClamp = !expanded && overflowing
+
   // 503（缺 DEEPSEEK_API_KEY）在任何输出之前就到：整区隐藏（spec §7.3）。
   // 已有输出的中断不走这里——保留内容 + 「继续生成解读」
   if (!hasStored && interpretError !== undefined && (completion ?? '') === '') return null
@@ -85,10 +100,81 @@ export function InterpretSection({ assessmentId, pathId, interpretation }: Props
         <h2 className="section-title">个性化解读</h2>
       </div>
 
-      <p className="whitespace-pre-wrap text-[15px] leading-[1.9]">
-        {body}
-        {streaming && <span className="stream-cursor" aria-hidden />}
-      </p>
+      <div className="relative">
+        <p
+          ref={bodyRef}
+          className={`whitespace-pre-wrap text-[15px] leading-[1.9] ${
+            showClamp ? 'max-h-[171px] overflow-hidden' : ''
+          }`}
+        >
+          {body}
+          {streaming && <span className="stream-cursor" aria-hidden />}
+        </p>
+        {showClamp && (
+          <>
+            {/* 渐进模糊：底部先糊化再淡出，暗示「还有下文」 */}
+            <span
+              aria-hidden
+              className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-paper via-paper/70 to-transparent"
+            />
+            <span
+              aria-hidden
+              className="pointer-events-none absolute inset-x-0 bottom-0 h-16 backdrop-blur-[3px] [mask-image:linear-gradient(to_top,black_25%,transparent)]"
+            />
+            <span className="absolute inset-x-0 bottom-0 flex justify-center">
+              <button
+                type="button"
+                className="chip border-accent/30 bg-surface/90 text-accent-deep transition-colors hover:border-accent"
+                onClick={() => setExpanded(true)}
+              >
+                展开个性化解读
+              </button>
+            </span>
+          </>
+        )}
+      </div>
+
+      {!hasStored && interpretError !== undefined && (completion ?? '') !== '' && (
+        <button
+          type="button"
+          className="chip mt-4 border-line bg-paper text-ink-2 hover:border-accent hover:text-accent-deep"
+          onClick={() => void complete('')}
+        >
+          继续生成解读
+        </button>
+      )}
+
+      <h3 className="mb-1 mt-8 font-serif text-[17px] font-semibold">追问</h3>
+      <p className="mb-3 text-[13px] text-ink-3">Navi也可能会出错，重要信息请仔细核对。</p>
+
+      <div className="h-[360px] overflow-y-auto rounded-panel border border-line bg-surface p-5">
+        {messages.length === 0 ? (
+          <p className="text-[13px] text-ink-3">还没有追问。想知道什么，直接问就好。</p>
+        ) : (
+          <ul className="space-y-3">
+            {messages.map(message => {
+              // 你在右、Navi 在左：位置本身就是角色标识，文字标签只留给读屏
+              const mine = message.role === 'user'
+              return (
+                <li key={message.id} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
+                  <span
+                    className={`max-w-[80%] whitespace-pre-wrap rounded-lg px-4 py-2 text-[14px] leading-[1.8] ${
+                      mine ? 'bg-accent-soft' : 'bg-paper'
+                    }`}
+                  >
+                    <span className="sr-only">{mine ? '你' : 'Navi'}：</span>
+                    {message.parts.flatMap(part => (part.type === 'text' ? [part.text] : [])).join('')}
+                  </span>
+                </li>
+              )
+            })}
+          </ul>
+        )}
+      </div>
+
+      {chatError !== undefined && (
+        <p className="mt-2 text-[13px] text-warn">追问暂时不可用，请稍后重试。</p>
+      )}
 
       {suggestions.length > 0 && (
         <div className="mt-4 flex flex-wrap gap-2">
@@ -105,38 +191,8 @@ export function InterpretSection({ assessmentId, pathId, interpretation }: Props
         </div>
       )}
 
-      {!hasStored && interpretError !== undefined && (completion ?? '') !== '' && (
-        <button
-          type="button"
-          className="chip mt-4 border-line bg-paper text-ink-2 hover:border-accent hover:text-accent-deep"
-          onClick={() => void complete('')}
-        >
-          继续生成解读
-        </button>
-      )}
-
-      <h3 className="mb-2 mt-8 font-serif text-[17px] font-semibold">追问</h3>
-      <p className="mb-3 text-[13px] text-ink-3">最近的对话都在这里，换路径、换一次测评都会接着上文。</p>
-
-      {messages.length > 0 && (
-        <ul className="mb-4 space-y-3">
-          {messages.map(message => (
-            <li key={message.id} className="text-[14px] leading-[1.8]">
-              <span className="font-medium">{message.role === 'user' ? '你：' : 'Navi：'}</span>
-              <span className="whitespace-pre-wrap">
-                {message.parts.flatMap(part => (part.type === 'text' ? [part.text] : [])).join('')}
-              </span>
-            </li>
-          ))}
-        </ul>
-      )}
-
-      {chatError !== undefined && (
-        <p className="mb-2 text-[13px] text-warn">追问暂时不可用，请稍后重试。</p>
-      )}
-
       <form
-        className="flex gap-2"
+        className="mt-3 flex gap-2"
         onSubmit={event => {
           event.preventDefault()
           const form = event.currentTarget

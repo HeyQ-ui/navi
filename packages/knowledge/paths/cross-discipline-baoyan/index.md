@@ -3,7 +3,7 @@ id: cross-discipline-baoyan
 title: 跨学科保研
 category: academic
 span: cross-discipline
-status: draft
+status: verified
 updated: 2026-10
 summary: >
   跨学科保研要同时应付两套标准。推免资格仍取决于本学科的成绩排名，目标院校考核的

@@ -40,16 +40,19 @@ describe('提示词 · 共通部分（设计文档 §8.1）', () => {
 })
 
 describe('提示词 · 仅追问适用的两条（设计文档 §8.1 适用列）', () => {
-  it('chat.md 带「不主动引入未问及的内容」与收尾话术', () => {
+  it('chat.md 带「不主动引入未问及的内容」与自然收尾规则', () => {
     const text = prompt('chat')
     expect(text).toContain('没有问到的内容不要出现')
-    expect(text).toContain('都可以问我')
+    expect(text).toContain('自然收尾')
+    // 固定的邀请句已移除：收尾要自然，不要招揽（用户决策）
+    expect(text).not.toContain('都可以问我')
   })
 
   it('interpret.md 不含这两条', () => {
     const text = prompt('interpret')
     expect(text).not.toContain('没有问到的内容不要出现')
     expect(text).not.toContain('都可以问我')
+    expect(text).not.toContain('自然收尾')
   })
 })
 

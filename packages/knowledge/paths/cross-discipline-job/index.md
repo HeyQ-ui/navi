@@ -3,7 +3,7 @@ id: cross-discipline-job
 title: 跨学科本科就业
 category: employment
 span: cross-discipline
-status: draft
+status: verified
 updated: 2026-10
 summary: >
   跨学科就业，也就是常说的「转行」，指不读研、毕业后直接进入和本学科不相关的行业或

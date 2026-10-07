@@ -3,7 +3,7 @@ id: civil-service
 title: 考公考编 / 选调生
 category: civil
 span: same-discipline
-status: draft
+status: verified
 updated: 2026-10
 summary: >
   考公考编没有「一考定胜负」，而是一场持续数月到一年、可以滚动参加的考试序列，单次

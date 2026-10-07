@@ -3,7 +3,7 @@ id: same-discipline-baoyan
 title: 本学科保研
 category: academic
 span: same-discipline
-status: draft
+status: verified
 updated: 2026-10
 summary: >
   本学科保研拼的是前三年的持续积累，可以理解成一场绩点与综合素质的「长期积分赛」。

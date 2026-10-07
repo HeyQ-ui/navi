@@ -3,7 +3,7 @@ id: same-discipline-kaoyan
 title: 本学科考研
 category: academic
 span: same-discipline
-status: draft
+status: verified
 updated: 2026-10
 summary: >
   本学科考研的决战在大四，是一场高强度冲刺，有效备考通常需要 10 到 12 个月。它不看
