@@ -43,11 +43,20 @@ export function HomePage() {
           <button type="button" className="btn-primary px-8 py-3 text-[16px]" onClick={() => start('self')}>
             测测自己
           </button>
-          <button type="button" className="btn-secondary px-8 py-3 text-[16px]" onClick={() => start('other')}>
+          <Link href="/paths" className="btn-secondary px-8 py-3 text-[16px]">
+            查看七种大学生路径
+          </Link>
+        </div>
+        <p className="mt-5 text-[13px] text-ink-3">
+          测试约5分钟 · 想先试试，也可以直接
+          <button
+            type="button"
+            className="text-accent-deep underline underline-offset-4 transition-colors hover:text-accent"
+            onClick={() => start('other')}
+          >
             测测别人
           </button>
-        </div>
-        <p className="mt-5 text-[13px] text-ink-3">约5分钟</p>
+        </p>
       </section>
 
       <section className="animate-rise border-t border-line py-14" style={{ animationDelay: '60ms' }}>
@@ -77,9 +86,6 @@ export function HomePage() {
             </li>
           ))}
         </ul>
-        <p className="mt-12 text-center text-[13px] text-ink-3">
-          也可以先随便看看——<Link href="/paths" className="text-accent-deep">七条路径的真相与对比</Link>，不登录也能读。
-        </p>
       </section>
     </div>
   )

@@ -11,8 +11,9 @@ export function ProfileRadar({ rows }: { rows: RadarRow[] }) {
   const hasIdeal = rows.some(r => r.ideal !== undefined)
   return (
     <div className="h-[320px] w-full" role="img" aria-label="生涯倾向雷达图">
+      {/* 半径留够：否则「风险偏好」「学科认同」这类最左/最右的轴标签会溢出 SVG 被裁 */}
       <ResponsiveContainer>
-        <RadarChart data={rows} cx="50%" cy="50%" outerRadius="70%">
+        <RadarChart data={rows} cx="50%" cy="50%" outerRadius="62%">
           <PolarGrid stroke="#E6DDD0" />
           <PolarAngleAxis dataKey="name" tick={{ fill: '#6E6459', fontSize: 13 }} />
           <PolarRadiusAxis domain={[0, 100]} tick={false} axisLine={false} />

@@ -25,13 +25,23 @@ beforeEach(() => {
 })
 
 describe('HomePage', () => {
-  it('主张、双入口与「约5分钟」', async () => {
+  it('主张、双入口与元信息行（spec §5.1）', async () => {
     vi.mocked(fetchMe).mockResolvedValue(null)
     renderHome()
     expect(await screen.findByText(/先看清自己，再看清/)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '测测自己' })).toBeInTheDocument()
+    // 次入口是路径总览，不是第二个测评入口
+    expect(screen.getByRole('link', { name: '查看七种大学生路径' })).toHaveAttribute('href', '/paths')
     expect(screen.getByRole('button', { name: '测测别人' })).toBeInTheDocument()
-    expect(screen.getByText('约5分钟')).toBeInTheDocument()
+    expect(screen.getByText(/测试约5分钟/)).toBeInTheDocument()
+  })
+
+  it('次入口「查看七种大学生路径」免登录直达总览（spec §4.2）', async () => {
+    vi.mocked(fetchMe).mockResolvedValue(null)
+    renderHome()
+    await waitFor(() => expect(screen.getByTestId('auth-ready')).toHaveTextContent('true'))
+    await userEvent.click(screen.getByRole('link', { name: '查看七种大学生路径' }))
+    expect(window.location.pathname).toBe('/paths')
   })
 
   it('未登录点入口先进登录页（登录门槛，spec §4.2）', async () => {
@@ -48,12 +58,5 @@ describe('HomePage', () => {
     await waitFor(() => expect(screen.getByTestId('auth-ready')).toHaveTextContent('true'))
     await userEvent.click(screen.getByRole('button', { name: '测测别人' }))
     expect(window.location.pathname).toBe('/grade')
-  })
-
-  it('页尾引导指向路径总览，不登录也能看（spec §5.1）', async () => {
-    vi.mocked(fetchMe).mockResolvedValue(null)
-    renderHome()
-    expect(await screen.findByRole('link', { name: '七条路径的真相与对比' }))
-      .toHaveAttribute('href', '/paths')
   })
 })

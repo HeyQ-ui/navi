@@ -52,7 +52,8 @@ export function ResultBody({ result, paths, tiedPaths, assessmentId, interpretat
             <span className="section-num">01</span>
             <h2 className="section-title">你的画像</h2>
           </div>
-          <div className="grid grid-cols-[minmax(0,5fr)_minmax(0,6fr)] items-center gap-10">
+          {/* 雷达在左、叙事在右；雷达那栏给宽一些，否则左右极点的轴标签会被容器裁掉 */}
+          <div className="grid grid-cols-[minmax(0,6fr)_minmax(0,5fr)] items-center gap-10">
             <ProfileRadar rows={radarRows(result, indicators)} />
             <div>
               {primaryDef !== undefined && primary !== undefined ? (
