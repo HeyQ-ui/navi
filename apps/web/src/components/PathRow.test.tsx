@@ -44,7 +44,7 @@ describe('PathRow', () => {
     const { container } = renderRow({
       id: 'civil-service', title: '考公考编', status: 'verified',
       match: 12, applicable: false,
-      hardFailures: [{ id: 'f1', message: '需要党员身份' }],
+      hardFailures: [{ id: 'f1', severity: 'hard', message: '需要党员身份' }],
     })
     expect(screen.getByText('不适用：需要党员身份')).toBeInTheDocument()
     expect(container.querySelector('.opacity-55')).not.toBeNull()
