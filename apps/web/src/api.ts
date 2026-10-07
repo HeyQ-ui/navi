@@ -216,3 +216,15 @@ export async function fetchPathKnowledge(pathId: string): Promise<PathKnowledge>
   const res = await fetch(`/api/knowledge/${encodeURIComponent(pathId)}`)
   return (await jsonOrThrow(res, '获取路径知识')) as PathKnowledge
 }
+
+/** 路径总览页一次取齐的数据：七条路径摘要 + 通用知识块（前端重设计 spec §5.8、§8.4） */
+export interface OverviewResponse {
+  paths: PathSummary[]
+  /** common.md 编译产物：myth（常见误区）与 compare（横向对比）两类块 */
+  common: Block[]
+}
+
+export async function fetchOverview(): Promise<OverviewResponse> {
+  const res = await fetch('/api/overview')
+  return (await jsonOrThrow(res, '获取路径总览')) as OverviewResponse
+}

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
-import { postDiagnose, logout, fetchQuestions, fetchChatHistory, buildChatBody } from './api.js'
+import { postDiagnose, logout, fetchQuestions, fetchOverview, fetchChatHistory, buildChatBody } from './api.js'
 import { ApiHttpError, fetchMeta, fetchPathKnowledge } from './api.js'
 
 afterEach(() => { vi.restoreAllMocks() })
@@ -144,5 +144,22 @@ describe('fetchPathKnowledge', () => {
     )
     await fetchPathKnowledge('a b')
     expect(vi.mocked(globalThis.fetch).mock.calls[0]![0]).toBe('/api/knowledge/a%20b')
+  })
+})
+
+describe('fetchOverview', () => {
+  it('取路径摘要与通用知识块，免登录可调', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ paths: [], common: [] }), { status: 200 }),
+    )
+    await expect(fetchOverview()).resolves.toEqual({ paths: [], common: [] })
+    expect(vi.mocked(globalThis.fetch).mock.calls[0]![0]).toBe('/api/overview')
+  })
+
+  it('失败时透出服务端文案', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ error: '服务维护中' }), { status: 503 }),
+    )
+    await expect(fetchOverview()).rejects.toThrow('服务维护中')
   })
 })
