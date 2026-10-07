@@ -53,6 +53,25 @@ describe('QuizPage', () => {
     await waitFor(() => expect(window.location.pathname).toBe('/'))
   })
 
+  it('取题在途时给骨架，不把刚选完年级的人弹回封面', async () => {
+    // 取题是异步的，而 wouter 的位置更新经 useSyncExternalStore 以同步优先级落地，
+    // 会先于 setData 那次更新提交——这一瞬间 data 仍是 null。守卫若把
+    // 「题目在路上」也当成「没有上下文」，用户就会在点完年级后被弹回封面。
+    // 真实时序：题目请求已在年级页发出，路由切到 /quiz 后问卷页才挂载——
+    // 用 Gate 还原这个挂载时机，避免把「初始无上下文」混进来。
+    function Gate() {
+      const flow = useFlow()
+      return flow.questionsLoading || flow.data !== null ? <QuizPage /> : null
+    }
+    vi.mocked(fetchQuestions).mockReturnValue(new Promise(() => {}))
+    const { container } = render(
+      <FlowProvider><Gate /><LoadProbe /></FlowProvider>,
+    )
+    await userEvent.click(await screen.findByRole('button', { name: '装填题目' }))
+    await waitFor(() => expect(container.querySelector('.skeleton')).not.toBeNull())
+    expect(window.location.pathname).toBe('/quiz')
+  })
+
   it('本组未答满不能前进，答满才能下一组（契约延续）', async () => {
     await setupQuiz()
     const next = screen.getByRole('button', { name: '下一组' })

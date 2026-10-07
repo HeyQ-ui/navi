@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
-import { fetchMe, fetchPathKnowledge } from './api.js'
+import userEvent from '@testing-library/user-event'
+import { fetchMe, fetchPathKnowledge, fetchQuestions } from './api.js'
 import { App } from './App.js'
 
 vi.mock('./api.js', async () => {
@@ -29,6 +30,21 @@ describe('App 路由外壳', () => {
     render(<App />)
     await waitFor(() => expect(window.location.pathname).toBe('/'))
     expect(await screen.findByRole('heading', { name: /先看清自己，再看清/ })).toBeInTheDocument()
+  })
+
+  it('年级选定且题目非空时进入问卷，而不是被问卷守卫弹回首页', async () => {
+    vi.mocked(fetchMe).mockResolvedValue({ id: 'u1', username: 'tester' })
+    vi.mocked(fetchQuestions).mockResolvedValue({
+      questions: [{ id: 'q1', text: '题目1', options: ['甲'], weight: 1 }],
+      indicators: [], paths: [],
+    })
+    window.history.pushState({}, '', '/grade')
+    render(<App />)
+    await userEvent.click(await screen.findByRole('button', { name: '大一' }))
+    await waitFor(() => expect(window.location.pathname).toBe('/quiz'))
+    // 守卫若把这次跳转当成「无答题上下文」，页面会立刻被弹回首页
+    expect(await screen.findByText('题目1')).toBeInTheDocument()
+    expect(window.location.pathname).toBe('/quiz')
   })
 
   it('/path/:pathId 把路由参数交给路径详情页', async () => {

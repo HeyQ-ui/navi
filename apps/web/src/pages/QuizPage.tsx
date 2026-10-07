@@ -41,7 +41,33 @@ export function QuizPage() {
     })
   }, [flow.resubmitAfterLogin, flow.account, flow.submitting])
 
-  // 状态守卫：没取过题就直接访问 /quiz（含刷新）时回首页（spec §4.2）。
+  // 取题在途：不能当成「没有答题上下文」。wouter 的位置更新经
+  // useSyncExternalStore 以同步优先级提交，会先于 chooseGrade 里那次 setData
+  // 落地——这一瞬间 data 仍是 null，若在这里跳转，刚点完年级的人会被弹回封面。
+  if (flow.data === null && flow.questionsLoading) {
+    return (
+      <div className="mx-auto max-w-[680px] px-6 py-14">
+        <div className="mb-10">
+          <div className="skeleton h-4 w-20" />
+          <div className="mt-2 skeleton h-[2px] w-full" />
+        </div>
+        <div className="space-y-10">
+          {[0, 1].map(index => (
+            <div key={index}>
+              <div className="skeleton h-5 w-3/5" />
+              <div className="mt-4 space-y-2.5">
+                <div className="skeleton h-12 w-full" />
+                <div className="skeleton h-12 w-full" />
+                <div className="skeleton h-12 w-full" />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    )
+  }
+
+  // 状态守卫：没有取过题就直接访问 /quiz（含刷新）时回首页（spec §4.2）。
   // 必须放在全部 hook 之后——守卫前的 hook 每次渲染都要按同样顺序执行
   if (flow.data === null) return <Redirect to="/" />
 
