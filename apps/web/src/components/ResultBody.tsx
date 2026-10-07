@@ -6,6 +6,7 @@ import type { PathKnowledge } from '../api.js'
 import { gapRows, mainPathOf, radarRows } from '../lib/result-math.js'
 import { useMeta } from '../state.js'
 import { InterpretSection } from './InterpretSection.js'
+import { PathRow } from './PathRow.js'
 import { ProfileRadar } from './ProfileRadar.js'
 import { Reveal } from './Reveal.js'
 import { StatusBadge } from './StatusBadge.js'
@@ -146,36 +147,18 @@ export function ResultBody({ result, paths, tiedPaths, assessmentId, interpretat
             <ul id="path-list" className="mt-5 space-y-2.5">
               {others.map(path => {
                 const summary = pathById.get(path.id)
-                const applicable = path.eligibility.applicable
                 return (
-                  <li key={path.id}>
-                    <Link
-                      href={`/path/${path.id}`}
-                      className={`group flex items-center gap-4 rounded-lg border border-line bg-surface px-5 py-3.5 transition-all hover:-translate-y-px hover:border-accent ${
-                        applicable ? '' : 'opacity-55'
-                      }`}
-                    >
-                      <span className="w-40 shrink-0 text-[15px] group-hover:text-accent-deep">
-                        {summary?.title ?? path.id}
-                      </span>
-                      <StatusBadge status={summary?.status ?? 'verified'} />
-                      <span className="h-1 flex-1 overflow-hidden rounded bg-line">
-                        <span
-                          className={`block h-1 ${applicable ? 'bg-ink-3' : 'bg-ink-3/50'}`}
-                          style={{ width: `${Math.round(path.match)}%` }}
-                        />
-                      </span>
-                      <span className="font-num w-8 text-right text-[15px]">{Math.round(path.match)}</span>
-                      <span className="text-ink-3 transition-colors group-hover:text-accent">›</span>
-                    </Link>
-                    {!applicable && path.eligibility.hardFailures.length > 0 && (
-                      <ul className="mt-1 pl-5 text-[12px] text-ink-3">
-                        {path.eligibility.hardFailures.map(f => (
-                          <li key={f.id}>不适用：{f.message}</li>
-                        ))}
-                      </ul>
-                    )}
-                  </li>
+                  <PathRow
+                    key={path.id}
+                    data={{
+                      id: path.id,
+                      title: summary?.title ?? path.id,
+                      status: summary?.status ?? 'verified',
+                      match: path.match,
+                      applicable: path.eligibility.applicable,
+                      hardFailures: path.eligibility.hardFailures,
+                    }}
+                  />
                 )
               })}
             </ul>
