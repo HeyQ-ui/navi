@@ -31,7 +31,7 @@
 - `PathSummary`（`apps/web/src/api.ts`）= `{ id, title, category, span, status, summary }`。
 - `Block`（`@navi/core`，经 `api.ts` 重导出）= `{ type: string; title?: string; html: string; raw: string }`。
 - `BlockRenderer`（`apps/web/src/components/BlockRenderer.tsx`）= `({ blocks, grade }: { blocks: Block[]; grade: Grade | null })`。
-- `EligibilityFailure` = `{ id, message }`（`api.ts` 重导出）。
+- `EligibilityFailure` = `{ id: string; severity: 'hard' | 'soft'; message: string }`（`api.ts` 重导出）。
 - `bundle.common` 已经由知识库编译器产出（`packages/knowledge/src/build.ts` 的 `parseContainers`），**无需改编译器**。
 
 **当前状态**：`apps/web` 全量测试 109 用例绿；`/api` 94 用例绿。每个任务结束时 `pnpm --filter @navi/web test`（或对应包）必须绿。
@@ -257,7 +257,7 @@ describe('PathRow', () => {
     const { container } = renderRow({
       id: 'civil-service', title: '考公考编', status: 'verified',
       match: 12, applicable: false,
-      hardFailures: [{ id: 'f1', message: '需要党员身份' }],
+      hardFailures: [{ id: 'f1', severity: 'hard', message: '需要党员身份' }],
     })
     expect(screen.getByText('不适用：需要党员身份')).toBeInTheDocument()
     expect(container.querySelector('.opacity-55')).not.toBeNull()
