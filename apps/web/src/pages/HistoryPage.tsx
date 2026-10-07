@@ -2,10 +2,9 @@ import { useEffect, useState } from 'react'
 import { Link, Redirect } from 'wouter'
 import { fetchAssessments } from '../api.js'
 import type { AssessmentSummary } from '../api.js'
+import { SOURCE_LABELS } from '../lib/source-label.js'
 import { useTitle } from '../lib/use-title.js'
 import { useFlow } from '../state.js'
-
-const SOURCE_LABELS: Record<string, string> = { self: '测测自己', other: '测测别人' }
 
 // 与 GradePage 的 GRADE_OPTIONS 同一份文案；只在这一行元信息里用，不抽共享模块
 const GRADE_LABELS: Record<string, string> = {

@@ -94,8 +94,8 @@ describe('HistoryPage', () => {
     renderPage()
     const link = await screen.findByRole('link', { name: /无主推荐/ })
     expect(link).toHaveAttribute('href', '/history/a2')
-    expect(link).toHaveTextContent('测测别人')
-    expect(link).not.toHaveTextContent('测测别人 ·')
+    expect(link).toHaveTextContent('临时测试')
+    expect(link).not.toHaveTextContent('临时测试 ·')
     expect(link).not.toHaveTextContent('78')
   })
 

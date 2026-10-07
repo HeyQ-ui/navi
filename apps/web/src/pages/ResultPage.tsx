@@ -1,9 +1,8 @@
 import { Redirect } from 'wouter'
 import { ResultBody } from '../components/ResultBody.js'
+import { SOURCE_LABELS } from '../lib/source-label.js'
 import { useTitle } from '../lib/use-title.js'
 import { useFlow } from '../state.js'
-
-const SOURCE_LABELS: Record<string, string> = { self: '测测自己', other: '测测别人' }
 
 /** 结果只存内存：直接访问或刷新后没有上下文就回首页（spec §4.2） */
 export function ResultPage() {

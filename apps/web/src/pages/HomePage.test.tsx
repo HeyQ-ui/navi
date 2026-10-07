@@ -32,7 +32,7 @@ describe('HomePage', () => {
     expect(screen.getByRole('button', { name: '测测自己' })).toBeInTheDocument()
     // 次入口是路径总览，不是第二个测评入口
     expect(screen.getByRole('link', { name: '查看七种大学生路径' })).toHaveAttribute('href', '/paths')
-    expect(screen.getByRole('button', { name: '测测别人' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '临时测试' })).toBeInTheDocument()
     expect(screen.getByText(/测试约5分钟/)).toBeInTheDocument()
   })
 
@@ -56,7 +56,7 @@ describe('HomePage', () => {
     vi.mocked(fetchMe).mockResolvedValue({ id: 'u1', username: 'tester' })
     renderHome()
     await waitFor(() => expect(screen.getByTestId('auth-ready')).toHaveTextContent('true'))
-    await userEvent.click(screen.getByRole('button', { name: '测测别人' }))
+    await userEvent.click(screen.getByRole('button', { name: '临时测试' }))
     expect(window.location.pathname).toBe('/grade')
   })
 })

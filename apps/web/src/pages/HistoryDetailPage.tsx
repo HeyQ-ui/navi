@@ -3,10 +3,9 @@ import { Link, Redirect } from 'wouter'
 import { fetchAssessment } from '../api.js'
 import type { AssessmentDetail } from '../api.js'
 import { ResultBody } from '../components/ResultBody.js'
+import { SOURCE_LABELS } from '../lib/source-label.js'
 import { useTitle } from '../lib/use-title.js'
 import { useFlow } from '../state.js'
-
-const SOURCE_LABELS: Record<string, string> = { self: '测测自己', other: '测测别人' }
 
 function formatDate(iso: string): string {
   const d = new Date(iso)

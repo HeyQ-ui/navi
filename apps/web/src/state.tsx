@@ -22,7 +22,7 @@ export interface FlowValue {
   signOut(): Promise<void>
 
   source: AssessmentSource
-  /** 从首页点「测测自己/测测别人」：换一次测评，此前作答与结果全部作废 */
+  /** 从首页点「测测自己 / 临时测试」：换一次测评，此前作答与结果全部作废 */
   startAssessment(source: AssessmentSource): void
 
   grade: Grade | null

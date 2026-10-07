@@ -1,4 +1,5 @@
 import { Link, useLocation } from 'wouter'
+import { SOURCE_LABELS } from '../lib/source-label.js'
 import { useFlow } from '../state.js'
 import { useTitle } from '../lib/use-title.js'
 import type { AssessmentSource } from '../api.js'
@@ -48,13 +49,13 @@ export function HomePage() {
           </Link>
         </div>
         <p className="mt-5 text-[13px] text-ink-3">
-          测试约5分钟 · 想先试试，也可以直接
+          测试约5分钟 · 想先试试，也可以直接做
           <button
             type="button"
             className="text-accent-deep underline underline-offset-4 transition-colors hover:text-accent"
             onClick={() => start('other')}
           >
-            测测别人
+            {SOURCE_LABELS.other}
           </button>
         </p>
       </section>
