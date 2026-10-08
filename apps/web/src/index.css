@@ -60,6 +60,9 @@
 .kb table { width: 100%; border-collapse: collapse; font-size: 14px; }
 .kb th, .kb td { border: 1px solid theme('colors.line'); padding: 8px 10px; text-align: left; }
 .kb th { background: theme('colors.paper'); }
+/* 参考文献的「来源」超链接（spec §5.9）。作用域限定在 .kb 内，不影响站内导航链接 */
+.kb a { color: theme('colors.accent.deep'); text-decoration: underline; text-underline-offset: 2px; }
+.kb a:hover { color: theme('colors.accent.DEFAULT'); }
 
 /* 代价 / 风险块：列表符号换成 － 与 △（spec §6） */
 .kb-cost ul, .kb-risk ul { list-style: none; padding-left: 0; }

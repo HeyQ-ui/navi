@@ -25,6 +25,7 @@ const bundle: KnowledgeBundle = {
   },
   common: [],
   boundaries: [],
+  references: [],
 }
 
 const answers: Answers = { q1: 4, q2: 4, q3: 4 }

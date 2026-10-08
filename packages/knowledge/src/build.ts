@@ -72,7 +72,15 @@ export function buildKnowledge(rootDir = ROOT): KnowledgeBundle {
     ? parseContainers(parseFrontmatter(readFileSync(boundariesPath, 'utf8')).content)
     : []
 
-  return { indicators, questions, archetypes, paths, blocks, common, boundaries }
+  // 参考文献清单（前端重设计 spec §5.9）。同 boundaries.md 的 `:::references` 容器序列。
+  // 走 parseFrontmatter 是防御性的：今天这个文件没有 frontmatter，将来若加了，
+  // 也不会把 `---` 分隔线当成表格内容渲染出来
+  const referencesPath = join(rootDir, 'references.md')
+  const references = existsSync(referencesPath)
+    ? parseContainers(parseFrontmatter(readFileSync(referencesPath, 'utf8')).content)
+    : []
+
+  return { indicators, questions, archetypes, paths, blocks, common, boundaries, references }
 }
 
 function main(): void {

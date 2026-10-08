@@ -70,6 +70,12 @@ describe('PathsPage', () => {
     await waitFor(() => expect(document.title).toBe('知识库 · Navi'))
   })
 
+  it('页尾小字链到参考文献页（spec §5.8 / §5.9）', async () => {
+    renderPage()
+    expect(await screen.findByRole('link', { name: '查看参考文献' }))
+      .toHaveAttribute('href', '/references')
+  })
+
   it('加载中显示暖纸色骨架屏（spec §7.1）', () => {
     vi.mocked(fetchOverview).mockReturnValue(new Promise<OverviewResponse>(() => {}))
     const { container } = renderPage()

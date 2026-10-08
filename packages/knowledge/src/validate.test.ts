@@ -24,6 +24,7 @@ function bundle(overrides: Partial<KnowledgeBundle> = {}): KnowledgeBundle {
     blocks: { 'same-discipline-baoyan': [] },
     common: [],
     boundaries: [],
+    references: [],
     ...overrides,
   }
 }
@@ -116,7 +117,7 @@ describe('validateKnowledge', () => {
 
   it('校验永不抛错——即使输入完全为空', () => {
     const empty: KnowledgeBundle = {
-      indicators: [], questions: [], archetypes: [], paths: [], blocks: {}, common: [], boundaries: [],
+      indicators: [], questions: [], archetypes: [], paths: [], blocks: {}, common: [], boundaries: [], references: [],
     }
     expect(() => validateKnowledge(empty)).not.toThrow()
   })

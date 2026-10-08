@@ -2,10 +2,19 @@
 
 | 项目 | 内容 |
 |---|---|
-| 文档版本 | v1.6 |
-| 日期 | 2026-09-27（v1.1 修订于 2026-10-02，v1.2、v1.3、v1.4 修订于 2026-10-03，v1.5、v1.6 修订于 2026-10-05） |
+| 文档版本 | v1.7 |
+| 日期 | 2026-09-27（v1.1 修订于 2026-10-02，v1.2、v1.3、v1.4 修订于 2026-10-03，v1.5、v1.6 修订于 2026-10-05，v1.7 修订于 2026-10-08） |
 | 状态 | 设计已定稿，待进入实施计划 |
 | 交付形态 | Web 应用 |
+
+**v1.7 修订摘要**（2026-10-08）：
+
+- **新增知识资产 `references.md`**：顶层来源清单（`:::` 容器序列，一张三列表），编译为
+  `bundle.references`，供前端 `/references` 页逐行列出全部条目的来源。落点与
+  `common.md` / `boundaries.md` 同属「跨路径通用文件」（见 §6.1）。页面与端点口径见
+  前端重设计 spec §5.9、§8.5
+- **文档与代码对齐**：§3.2 的目录树补上 v1.5 起就存在的 `common.md`，并按 v1.6 已记录的
+  结论去掉并不存在的 `meta.yaml`——此前只有 §6.1 改了，§3.2 漏改
 
 **v1.6 修订摘要**（2026-10-05）：
 
@@ -222,12 +231,13 @@
 navi/
 ├── packages/
 │   ├── knowledge/          # 知识库（内容主战场，与代码解耦）
-│   │   ├── meta.yaml          # 全局注册表：路径、指标、原型索引
 │   │   ├── indicators/        # 10 个指标定义（7 画像 + 3 意愿）
 │   │   ├── archetypes/        # 画像原型定义
 │   │   ├── questions/         # 问卷题目与指标映射
 │   │   ├── paths/             # 路径文档
-│   │   └── boundaries.md      # 诚实边界清单
+│   │   ├── common.md          # 通用知识（跨路径共用）
+│   │   ├── boundaries.md      # 诚实边界清单
+│   │   └── references.md      # 参考文献来源清单
 │   ├── core/               # 纯逻辑层，零框架依赖，可单测
 │   │   ├── scoring/           # 指标计算、权重重归一化
 │   │   ├── eligibility/       # 资格过滤
@@ -481,6 +491,7 @@ packages/knowledge/
 ├── questions/             # 问卷题目 → 指标映射
 ├── common.md              # 通用知识（跨路径共用）
 ├── boundaries.md          # 诚实边界清单
+├── references.md          # 参考文献来源清单
 └── paths/                 # 路径文档
     ├── same-discipline-baoyan/      # 本学科保研
     ├── cross-discipline-baoyan/     # 跨学科保研
@@ -491,10 +502,12 @@ packages/knowledge/
     └── civil-service/               # 体制内（考公考编 / 选调）
 ```
 
-**两类顶层通用文件。** `common.md` 与 `boundaries.md` 是仅有的跨路径内容：后者放
-「我们答不了什么」（§8.4），前者放不属于任何单一路径的知识——大一新生常见误区、
-多路径横向对比。两者都是 **`:::` 容器序列**（没有 `@block` 注解，块类型取自容器名），
-每条容器各成一块，走 `parseContainers` 编译。
+**三类顶层通用文件。** `common.md`、`boundaries.md` 与 `references.md` 是仅有的跨路径内容：
+`boundaries.md` 放「我们答不了什么」（§8.4），`common.md` 放不属于任何单一路径的知识——
+大一新生常见误区、多路径横向对比，`references.md` 放全部条目的来源清单（前端重设计
+spec §5.9）。三者都是 **`:::` 容器序列**（没有 `@block` 注解，块类型取自容器名），
+每条容器各成一块，走 `parseContainers` 编译，分别进入 `bundle.common` /
+`bundle.boundaries` / `bundle.references`。
 
 **通用内容走独立文件，不走复制。** 同一段误区复制进七条路径，改一处就要改七处，
 而七份之间迟早会不一致——对一个以信息准确性为承诺的产品，这是最坏的失败形态。
@@ -585,7 +598,8 @@ knowledge/*.md  ──[build.ts: marked 解析]──▶  dist/knowledge.json
 
 - **构建时编译**，运行时不解析文本，零运行时开销。
 - **通用内容一并编译进产物**：`common.md` 的块进入 `bundle.common`，与 `boundaries.md`
-  进入 `bundle.boundaries` 同构。`llm` 层只读编译产物，不跨包去读源目录。
+  进入 `bundle.boundaries`、`references.md` 进入 `bundle.references` 同构。`llm` 层只读
+  编译产物，不跨包去读源目录。
 - **编译期校验**：`id` 唯一性、引用完整性、块类型合法性。校验失败**仅警告不阻断**——不能因内容侧使用了新的块类型而导致构建失败。
 
 **前端渲染映射**
@@ -599,6 +613,7 @@ BlockRenderer
   ├─ risk       → <RiskPanel />      风险与失败后的时间窗口
   ├─ compare    → <CompareTable />   路径横向对比
   ├─ boundary   → <BoundaryNotice /> 诚实边界提示
+  ├─ references → <RichText />       表格排版（序号 / 题录 / 来源）
   └─ 未识别类型 → <RichText />        降级渲染，永不失败
 ```
 

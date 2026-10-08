@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { fetchMe, fetchOverview, fetchPathKnowledge, fetchQuestions } from './api.js'
+import { fetchMe, fetchOverview, fetchPathKnowledge, fetchQuestions, fetchReferences } from './api.js'
 import { App } from './App.js'
 
 vi.mock('./api.js', async () => {
@@ -10,7 +10,7 @@ vi.mock('./api.js', async () => {
     ...actual,
     fetchMe: vi.fn(), fetchQuestions: vi.fn(), postDiagnose: vi.fn(),
     authenticate: vi.fn(), logout: vi.fn(), fetchMeta: vi.fn(), fetchPathKnowledge: vi.fn(),
-    fetchOverview: vi.fn(),
+    fetchOverview: vi.fn(), fetchReferences: vi.fn(),
   }
 })
 
@@ -68,5 +68,15 @@ describe('App 路由外壳', () => {
     window.history.pushState({}, '', '/paths')
     render(<App />)
     expect(await screen.findByRole('heading', { name: 'Navi的知识库' })).toBeInTheDocument()
+  })
+
+  it('/references 渲染参考文献页（免登录）', async () => {
+    vi.mocked(fetchMe).mockResolvedValue(null)
+    vi.mocked(fetchReferences).mockResolvedValue({
+      blocks: [{ type: 'references', html: '<p>来源清单</p>', raw: '来源清单' }],
+    })
+    window.history.pushState({}, '', '/references')
+    render(<App />)
+    expect(await screen.findByRole('heading', { name: '参考文献' })).toBeInTheDocument()
   })
 })

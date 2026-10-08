@@ -228,3 +228,14 @@ export async function fetchOverview(): Promise<OverviewResponse> {
   const res = await fetch('/api/overview')
   return (await jsonOrThrow(res, '获取路径总览')) as OverviewResponse
 }
+
+/** 参考文献页的数据：知识库的来源清单（前端重设计 spec §5.9） */
+export interface ReferencesResponse {
+  /** references.md 编译产物：一个 references 块，块内是「序号 / 题录 / 来源」表格 */
+  blocks: Block[]
+}
+
+export async function fetchReferences(): Promise<ReferencesResponse> {
+  const res = await fetch('/api/references')
+  return (await jsonOrThrow(res, '获取参考文献')) as ReferencesResponse
+}

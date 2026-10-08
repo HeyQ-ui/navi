@@ -248,6 +248,13 @@ export function createApp(bundle: KnowledgeBundle, options: AppOptions = {}): Ho
     return c.json({ paths: pathSummaries(), common: bundle.common })
   })
 
+  // 参考文献页（spec §5.9）：知识库的来源清单，同样是浏览不挡的免登录端点。
+  // 返回块数组而非裸表格，是为了与 /api/knowledge/:pathId 的 { path, blocks } 同构——
+  // 前端两处都走同一个 BlockRenderer
+  app.get('/api/references', c => {
+    return c.json({ blocks: bundle.references })
+  })
+
   app.post('/api/diagnose', requireSession(auth), async c => {
     const body = await readBody(c)
     if (body instanceof Response) return body

@@ -109,6 +109,13 @@ export function PathsPage() {
           <BlockRenderer blocks={rest} grade={null} />
         </section>
       )}
+
+      {/* 页尾小字：知识库的来源清单入口（spec §5.8 / §5.9） */}
+      <footer className="mt-16 border-t border-line pt-6 text-[13px] text-ink-3">
+        <Link href="/references" className="transition-colors hover:text-accent-deep">
+          查看参考文献
+        </Link>
+      </footer>
     </div>
   )
 }

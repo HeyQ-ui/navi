@@ -8,6 +8,7 @@ import { HomePage } from './pages/HomePage.js'
 import { PathDetailPage } from './pages/PathDetailPage.js'
 import { PathsPage } from './pages/PathsPage.js'
 import { QuizPage } from './pages/QuizPage.js'
+import { ReferencesPage } from './pages/ReferencesPage.js'
 import { ResultPage } from './pages/ResultPage.js'
 import { FlowProvider } from './state.js'
 
@@ -26,6 +27,7 @@ export function App() {
           {params => <PathDetailPage pathId={params.pathId} />}
         </Route>
         <Route path="/paths" component={PathsPage} />
+        <Route path="/references" component={ReferencesPage} />
         <Route path="/history" component={HistoryPage} />
         <Route path="/history/:recordId">
           {params => <HistoryDetailPage recordId={params.recordId} />}

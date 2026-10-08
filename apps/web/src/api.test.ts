@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { postDiagnose, logout, fetchQuestions, fetchOverview, fetchChatHistory, buildChatBody } from './api.js'
-import { ApiHttpError, fetchMeta, fetchPathKnowledge } from './api.js'
+import { ApiHttpError, fetchMeta, fetchPathKnowledge, fetchReferences } from './api.js'
 
 afterEach(() => { vi.restoreAllMocks() })
 
@@ -161,5 +161,22 @@ describe('fetchOverview', () => {
       new Response(JSON.stringify({ error: '服务维护中' }), { status: 503 }),
     )
     await expect(fetchOverview()).rejects.toThrow('服务维护中')
+  })
+})
+
+describe('fetchReferences', () => {
+  it('取知识库来源清单块，免登录可调', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ blocks: [] }), { status: 200 }),
+    )
+    await expect(fetchReferences()).resolves.toEqual({ blocks: [] })
+    expect(vi.mocked(globalThis.fetch).mock.calls[0]![0]).toBe('/api/references')
+  })
+
+  it('失败时透出服务端文案', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ error: '服务维护中' }), { status: 503 }),
+    )
+    await expect(fetchReferences()).rejects.toThrow('服务维护中')
   })
 })

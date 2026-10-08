@@ -17,6 +17,7 @@ const CHIP_STYLES: Record<string, { label: string; className: string }> = {
   risk: { label: '风险', className: 'border-bad/25 bg-bad-soft text-bad' },
   compare: { label: '对比', className: 'border-line bg-paper text-ink-2' },
   boundary: { label: '诚实边界', className: 'border-line bg-paper text-ink-2' },
+  references: { label: '参考文献', className: 'border-line bg-paper text-ink-2' },
 }
 
 const NEUTRAL_CHIP = 'border-line bg-paper text-ink-2'

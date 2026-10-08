@@ -212,3 +212,38 @@ describe('buildKnowledge · 通用知识（设计文档 §6.1 v1.5）', () => {
     }
   })
 })
+
+describe('buildKnowledge · 参考文献（前端重设计 spec §5.9）', () => {
+  it('根目录没有 references.md 时返回空数组', () => {
+    expect(buildKnowledge(makeTempRoot()).references).toEqual([])
+  })
+
+  it('解析 references.md 为 references 块，raw 里不带字面 :::', () => {
+    const root = makeTempRoot()
+    writeFileSync(
+      join(root, 'references.md'),
+      ':::references\n| # | 题录 | 来源 |\n|---|---|---|\n| 1 | 某论文 | [来源](http://example.com/a) |\n:::\n',
+      'utf8',
+    )
+    const blocks = buildKnowledge(root).references
+    expect(blocks).toHaveLength(1)
+    expect(blocks[0]!.type).toBe('references')
+    expect(blocks[0]!.raw).toContain('| 1 | 某论文 |')
+    expect(blocks[0]!.html).toContain('<table>')
+    expect(blocks[0]!.html).toContain('href="http://example.com/a"')
+    expect(blocks[0]!.raw.includes(':::') || blocks[0]!.html.includes(':::')).toBe(false)
+  })
+
+  it('真实的 references.md 逐条可查：表格行与超链接都在（防止将来退化时无人报警）', () => {
+    const blocks = buildKnowledge().references
+    expect(blocks).toHaveLength(1)
+    const block = blocks[0]!
+    expect(block.type).toBe('references')
+    // 表头 1 行 + 数据行；数据行数量与目录里的条目数一致
+    expect(block.html).toContain('<table>')
+    expect(block.html.match(/<tr>/g)?.length ?? 0).toBeGreaterThan(30)
+    // 每一行都带一个「来源」超链接，不是裸文本
+    const anchors = block.html.match(/<a href=/g)?.length ?? 0
+    expect(anchors).toBeGreaterThanOrEqual(34)
+  })
+})

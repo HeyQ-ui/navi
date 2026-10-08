@@ -40,6 +40,7 @@ const bundle: KnowledgeBundle = {
     { type: 'compare', title: '七条路径差异对比', html: '<table></table>', raw: '| 对比维度 | 本学科保研 |' },
   ],
   boundaries: [{ type: 'free', html: '<p>转专业政策无法可靠回答</p>', raw: '转专业政策无法可靠回答' }],
+  references: [],
 }
 
 const result: DiagnosisResult = {

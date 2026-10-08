@@ -65,6 +65,8 @@ export interface KnowledgeBundle {
   common: Block[]
   /** 诚实边界清单（设计文档 §8.4）。文件缺失时为空数组 */
   boundaries: Block[]
+  /** 参考文献清单（前端重设计 spec §5.9）。文件缺失时为空数组 */
+  references: Block[]
 }
 
 const MIN_QUESTIONS_PER_INDICATOR = 3

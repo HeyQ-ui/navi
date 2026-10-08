@@ -51,6 +51,7 @@ const bundle: KnowledgeBundle = {
   blocks: { 'same-discipline-baoyan': [{ type: 'timeline', html: '<p>时间线</p>', raw: '时间线' }] },
   common: [],
   boundaries: [],
+  references: [],
 }
 
 const okAnswers = { q1: 4, q2: 4, q3: 4 }
@@ -169,6 +170,32 @@ describe('GET /api/overview', () => {
     // 摘要只含摘要：知识块与权重由 /api/knowledge/:pathId 单独提供
     expect(body.paths.some(p => 'weights' in p || 'eligibility' in p || 'blocks' in p)).toBe(false)
     expect(body.common).toEqual(common)
+  })
+})
+
+describe('GET /api/references', () => {
+  const references = [
+    {
+      type: 'references',
+      html: '<table><tr><td>1</td></tr></table>',
+      raw: '| 1 | 题录 | [来源](http://example.com/a) |',
+    },
+  ]
+
+  it('免登录返回知识库的来源清单，供参考文献页渲染', async () => {
+    // 与 /api/overview 同为浏览不挡的端点（spec §5.9）
+    const res = await createApp({ ...bundle, references }).request('/api/references')
+    expect(res.status).toBe(200)
+    const body = await res.json() as { blocks: unknown[] }
+    expect(body.blocks).toEqual(references)
+  })
+
+  it('返回块数组而非裸表格，与 /api/knowledge/:pathId 同构', async () => {
+    const res = await createApp({ ...bundle, references }).request('/api/references')
+    const body = await res.json() as Record<string, unknown>
+    expect(Array.isArray(body.blocks)).toBe(true)
+    expect(body).not.toHaveProperty('rows')
+    expect(body).not.toHaveProperty('table')
   })
 })
 
