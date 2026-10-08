@@ -41,3 +41,14 @@ Thumbs.db
 
 # superpowers 执行计划的本地工作区（ledger、brief、review 包，均为临时产物）
 .superpowers/
+
+# ── 工具缓存 ──
+# codegraph 索引缓存，由工具自行重建
+.codegraph/
+
+# ── 本地素材：非知识库源文件，不入库 ──
+# 知识库正文是 Markdown / YAML（packages/knowledge/*.md 与 questions/*.yaml）；
+# 这些是派生出来的分享件与参考文档，体积大且为二进制，留在本地
+packages/knowledge/questions/生涯规划测评题目/
+packages/knowledge/questions/.trae-html-share-packages/
+docs/*.docx
