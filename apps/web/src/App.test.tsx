@@ -67,6 +67,6 @@ describe('App 路由外壳', () => {
     vi.mocked(fetchOverview).mockResolvedValue({ paths: [], common: [] })
     window.history.pushState({}, '', '/paths')
     render(<App />)
-    expect(await screen.findByRole('heading', { name: '七条路径' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Navi的知识库' })).toBeInTheDocument()
   })
 })

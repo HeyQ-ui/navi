@@ -7,7 +7,7 @@ import type { AssessmentSource } from '../api.js'
 const STEPS = [
   { num: '01', title: '回答一组问题', text: '按你的年级取题，如实作答' },
   { num: '02', title: '得到你的倾向', text: '根据你的回答，得到你的生涯倾向，看看七条路径里哪条更适合你' },
-  { num: '03', title: '相对全面的了解路径', text: '从时间节点、时间段行动建议、风险等角度了解路径' },
+  { num: '03', title: '相对全面地了解路径', text: '从时间节点、时间段行动建议、风险等角度了解路径' },
 ]
 
 const PROMISES = [

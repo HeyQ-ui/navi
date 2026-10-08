@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { fetchOverview } from '../api.js'
 import type { OverviewResponse } from '../api.js'
@@ -38,8 +38,8 @@ beforeEach(() => {
 describe('PathsPage', () => {
   it('七条路径入口 + 两段通用知识（spec §5.8）', async () => {
     renderPage()
-    expect(await screen.findByRole('heading', { name: '七条路径' })).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: '选一条路，看它的真相' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Navi的知识库' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: '七条路径' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: '大一新生常见误区' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: '七条路径横向对比' })).toBeInTheDocument()
     expect(screen.getAllByRole('link', { name: /保研|考研|考公考编|就业/ })).toHaveLength(7)
@@ -67,6 +67,7 @@ describe('PathsPage', () => {
   it('页头有返回首页入口（spec §5.8）', async () => {
     renderPage()
     expect(await screen.findByRole('link', { name: /返回首页/ })).toHaveAttribute('href', '/')
+    await waitFor(() => expect(document.title).toBe('知识库 · Navi'))
   })
 
   it('加载中显示暖纸色骨架屏（spec §7.1）', () => {

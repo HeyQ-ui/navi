@@ -11,7 +11,7 @@ import { useTitle } from '../lib/use-title.js'
  * 数据一次取齐（spec §8.4）——路径摘要 + common.md 的通用知识块。
  */
 export function PathsPage() {
-  useTitle('七条路径 · Navi')
+  useTitle('知识库 · Navi')
   const [data, setData] = useState<OverviewResponse | null>(null)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
@@ -69,16 +69,16 @@ export function PathsPage() {
         <Link href="/" className="text-[14px] text-ink-2 transition-colors hover:text-accent-deep">
           ← 返回首页
         </Link>
-        <h1 className="mt-6 font-serif text-[34px] font-black leading-[1.3]">七条路径</h1>
+        <h1 className="mt-6 font-serif text-[34px] font-black leading-[1.3]">Navi的知识库</h1>
         <p className="mt-3 text-[15px] text-ink-2">
-          不需要先测评。先看清每条路要付出什么、会在哪里卡住。
+          了解Navi的知识库和参考文献
         </p>
       </header>
 
       <section className="mt-12">
         <div className="section-head">
           <span className="section-num">01</span>
-          <h2 className="section-title">选一条路，看它的真相</h2>
+          <h2 className="section-title">七条路径</h2>
         </div>
         <ul className="space-y-2.5">
           {data.paths.map(path => (
