@@ -30,7 +30,6 @@ export function GradePage() {
   return (
     <div className="mx-auto max-w-[560px] animate-rise px-6 py-20">
       <h1 className="font-serif text-[28px] font-black">先选择你现在的年级</h1>
-      <p className="mt-2 text-[14px] text-ink-2">不同年级看到的题目和判断依据不同。</p>
 
       <div className="mt-8 space-y-3">
         {GRADE_OPTIONS.map(option => (

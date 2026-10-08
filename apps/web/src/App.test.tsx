@@ -22,7 +22,7 @@ describe('App 路由外壳', () => {
   it('/ 渲染首页与顶栏', async () => {
     window.history.pushState({}, '', '/')
     render(<App />)
-    expect(await screen.findByRole('heading', { name: /先看清自己，再看清/ })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: '大学生生涯规划Agent' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /Navi/ })).toHaveAttribute('href', '/')
   })
 
@@ -30,7 +30,7 @@ describe('App 路由外壳', () => {
     window.history.pushState({}, '', '/no-such-route')
     render(<App />)
     await waitFor(() => expect(window.location.pathname).toBe('/'))
-    expect(await screen.findByRole('heading', { name: /先看清自己，再看清/ })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: '大学生生涯规划Agent' })).toBeInTheDocument()
   })
 
   it('年级选定且题目非空时进入问卷，而不是被问卷守卫弹回首页', async () => {

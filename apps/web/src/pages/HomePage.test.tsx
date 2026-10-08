@@ -28,7 +28,7 @@ describe('HomePage', () => {
   it('主张、双入口与元信息行（spec §5.1）', async () => {
     vi.mocked(fetchMe).mockResolvedValue(null)
     renderHome()
-    expect(await screen.findByText(/先看清自己，再看清/)).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: '大学生生涯规划Agent' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '测测自己' })).toBeInTheDocument()
     // 次入口是路径总览，不是第二个测评入口
     expect(screen.getByRole('link', { name: '查看七种大学生路径' })).toHaveAttribute('href', '/paths')
